@@ -15,9 +15,9 @@ node_modules
 .c9/
 *.launch
 .settings/
+.claude/
+.gemini/
 *.sublime-workspace
-
-# IDE - VSCode
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -33,6 +33,8 @@ npm-debug.log
 yarn-error.log
 testem.log
 /typings
+/.nyc_output
+/requests
 
 # System Files
 .DS_Store
@@ -42,3 +44,35 @@ Thumbs.db
 .nx/workspace-data
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
+
+# Environment variables
+.env
+.env*
+!.env.example
+
+# Prisma
+apps/binbot-server/prisma/migrations
+*.db
+*.db-journal
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Docker
+docker-compose.override.yml
+
+# Build
+*.tsbuildinfo
+
+# Secrets
+apps/nemesis-server/.env.*
+
+# Docker
+docker/mariadb/data
+docker/redis/data
