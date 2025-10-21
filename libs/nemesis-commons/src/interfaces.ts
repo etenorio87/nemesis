@@ -54,6 +54,8 @@ export interface BacktestTrade {
   price: number;
   timestamp: Date;
   reason: string;
+  profitLoss?: number; // P/L de este trade específico
+  profitLossPercentage?: number; // % P/L del trade
 }
 
 export interface BacktestResult {
@@ -63,17 +65,24 @@ export interface BacktestResult {
   endDate: Date;
   initialBalance: number;
   finalBalance: number;
-  totalTrades: number;
+  totalOperations: number; // Total de BUY + SELL
+  completedTrades: number; // Pares completos (BUY+SELL)
   winningTrades: number;
   losingTrades: number;
   profitLoss: number;
   profitLossPercentage: number;
   winRate: number;
   trades: BacktestTrade[];
-  equity: number[]; // Evolución del capital
+  equity: number[]; // Valor de la cuenta en cada momento (balance + posiciones)
   maxDrawdown: number;
   sharpeRatio?: number;
+  averageWin?: number;
+  averageLoss?: number;
+  profitFactor?: number;
+  stopLossTriggered?: number;
+  takeProfitTriggered?: number;
 }
+
 
 export interface BacktestConfig {
   symbol: string;
@@ -81,6 +90,9 @@ export interface BacktestConfig {
   startDate?: Date;
   endDate?: Date;
   initialBalance: number;
-  limit?: number; // Número de klines a analizar
-  commissionRate?: number; // Comisión por trade (ej: 0.001 = 0.1%)
+  limit?: number;
+  commissionRate?: number;
+  stopLossPercentage?: number; // % de pérdida para cerrar posición
+  takeProfitPercentage?: number; // % de ganancia para cerrar posición
+  useTrailingStop?: boolean; // Stop-loss dinámico
 }

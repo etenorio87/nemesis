@@ -1,7 +1,7 @@
 import {Injectable, Logger} from '@nestjs/common';
+import {BacktestConfig, BacktestResult, BacktestTrade, Kline,} from '@nemesis/commons';
 import {BinanceService} from '../binance/binance.service';
 import {AnalysisService} from '../strategy/analysis.service';
-import {BacktestConfig, BacktestResult, BacktestTrade, Kline,} from '@nemesis/commons';
 
 @Injectable()
 export class BacktestingService {
@@ -14,7 +14,7 @@ export class BacktestingService {
 
   async runBacktest(config: BacktestConfig): Promise<BacktestResult> {
     this.logger.log(
-      `Starting backtest for ${config.symbol} on ${config.interval}`
+      `Starting backtest for ${config.symbol} on ${config.interval} with SL: ${config.stopLossPercentage || 'N/A'}%, TP: ${config.takeProfitPercentage || 'N/A'}%`
     );
 
     // 1. Obtener datos históricos
@@ -32,7 +32,7 @@ export class BacktestingService {
     const result = this.simulateTrading(klines, config);
 
     this.logger.log(
-      `Backtest completed: P/L: ${result.profitLossPercentage.toFixed(2)}%, Win Rate: ${result.winRate.toFixed(2)}%`
+      `Backtest completed: P/L: ${result.profitLossPercentage.toFixed(2)}%, Win Rate: ${result.winRate.toFixed(2)}%, SL Triggered: ${result.stopLossTriggered}, TP Triggered: ${result.takeProfitTriggered}`
     );
 
     return result;
@@ -43,20 +43,28 @@ export class BacktestingService {
     config: BacktestConfig
   ): BacktestResult {
     let balance = config.initialBalance;
-    let position: 'LONG' | 'SHORT' | null = null;
+    let position: 'LONG' | null = null;
     let entryPrice = 0;
     let positionSize = 0;
+    let highestPriceInPosition = 0; // Para trailing stop
 
     const trades: BacktestTrade[] = [];
     const equity: number[] = [balance];
-    const commissionRate = config.commissionRate || 0.001; // 0.1% por defecto
+    const commissionRate = config.commissionRate || 0.001;
 
     let winningTrades = 0;
     let losingTrades = 0;
+    let stopLossTriggered = 0;
+    let takeProfitTriggered = 0;
+    let totalWinAmount = 0;
+    let totalLossAmount = 0;
 
-    // Necesitamos al menos 26 velas para MACD (26 es el periodo lento)
+    // Configuración de SL/TP
+    const stopLossPercentage = config.stopLossPercentage || null;
+    const takeProfitPercentage = config.takeProfitPercentage || null;
+    const useTrailingStop = config.useTrailingStop || false;
+
     for (let i = 50; i < klines.length; i++) {
-      // Tomar ventana de datos hasta el punto actual
       const historicalData = klines.slice(0, i + 1);
       const currentKline = klines[i];
 
@@ -67,21 +75,18 @@ export class BacktestingService {
         config.interval
       );
 
-      // Generar señal
       const signal = this.analysisService.generateSignal(
         analysis,
         currentKline.close
       );
 
-      // Simular trading
       if (position === null) {
-        // No hay posición abierta
+        // No hay posición abierta - buscar entrada
         if (signal.signal === 'BUY' && signal.confidence >= 60) {
-          // Abrir posición LONG
           position = 'LONG';
           entryPrice = currentKline.close;
+          highestPriceInPosition = entryPrice;
 
-          // Usar el 95% del balance (dejar 5% como margen)
           const investAmount = balance * 0.95;
           const commission = investAmount * commissionRate;
           positionSize = (investAmount - commission) / entryPrice;
@@ -99,39 +104,95 @@ export class BacktestingService {
           );
         }
       } else if (position === 'LONG') {
-        // Tenemos posición LONG abierta
-        const shouldClose =
-          signal.signal === 'SELL' && signal.confidence >= 50;
+        // Tenemos posición LONG abierta - verificar salidas
+        const currentPrice = currentKline.close;
+        const priceChangePercent =
+          ((currentPrice - entryPrice) / entryPrice) * 100;
 
+        // Actualizar highest price para trailing stop
+        if (currentPrice > highestPriceInPosition) {
+          highestPriceInPosition = currentPrice;
+        }
+
+        let shouldClose = false;
+        let closeReason = '';
+
+        // 1. Verificar Stop Loss
+        if (stopLossPercentage !== null) {
+          let stopLossPrice: number;
+
+          if (useTrailingStop) {
+            // Trailing Stop: se mueve con el precio
+            stopLossPrice =
+              highestPriceInPosition * (1 - stopLossPercentage / 100);
+          } else {
+            // Stop Loss fijo desde entrada
+            stopLossPrice = entryPrice * (1 - stopLossPercentage / 100);
+          }
+
+          if (currentPrice <= stopLossPrice) {
+            shouldClose = true;
+            closeReason = useTrailingStop
+              ? `Trailing Stop Loss activado (-${stopLossPercentage}% desde máximo)`
+              : `Stop Loss activado (-${stopLossPercentage}%)`;
+            stopLossTriggered++;
+          }
+        }
+
+        // 2. Verificar Take Profit
+        if (!shouldClose && takeProfitPercentage !== null) {
+          const takeProfitPrice =
+            entryPrice * (1 + takeProfitPercentage / 100);
+
+          if (currentPrice >= takeProfitPrice) {
+            shouldClose = true;
+            closeReason = `Take Profit activado (+${takeProfitPercentage}%)`;
+            takeProfitTriggered++;
+          }
+        }
+
+        // 3. Verificar señal de venta del análisis técnico
+        if (!shouldClose && signal.signal === 'SELL' && signal.confidence >= 50) {
+          shouldClose = true;
+          closeReason = `Señal técnica: ${signal.reason}`;
+        }
+
+        // Ejecutar cierre de posición
         if (shouldClose) {
-          // Cerrar posición
-          const exitPrice = currentKline.close;
+          const exitPrice = currentPrice;
           const saleAmount = positionSize * exitPrice;
           const commission = saleAmount * commissionRate;
-          balance += saleAmount - commission;
+          const netSaleAmount = saleAmount - commission;
+          balance += netSaleAmount;
 
-          const profitLoss = saleAmount - commission - positionSize * entryPrice;
+          const profitLoss = netSaleAmount - positionSize * entryPrice;
+          const profitLossPercentage = priceChangePercent;
 
           if (profitLoss > 0) {
             winningTrades++;
+            totalWinAmount += profitLoss;
           } else {
             losingTrades++;
+            totalLossAmount += Math.abs(profitLoss);
           }
 
           trades.push({
             type: 'SELL',
             price: exitPrice,
             timestamp: new Date(currentKline.closeTime),
-            reason: signal.reason,
+            reason: closeReason,
+            profitLoss,
+            profitLossPercentage,
           });
 
           this.logger.debug(
-            `SELL at ${exitPrice} (${signal.confidence}%) - P/L: ${profitLoss.toFixed(2)} - ${signal.reason}`
+            `SELL at ${exitPrice} - P/L: ${profitLoss.toFixed(2)} (${profitLossPercentage.toFixed(2)}%) - ${closeReason}`
           );
 
           position = null;
           positionSize = 0;
           entryPrice = 0;
+          highestPriceInPosition = 0;
         }
       }
 
@@ -149,13 +210,18 @@ export class BacktestingService {
       const exitPrice = lastKline.close;
       const saleAmount = positionSize * exitPrice;
       const commission = saleAmount * commissionRate;
-      balance += saleAmount - commission;
+      const netSaleAmount = saleAmount - commission;
+      balance += netSaleAmount;
 
-      const profitLoss = saleAmount - commission - positionSize * entryPrice;
+      const profitLoss = netSaleAmount - positionSize * entryPrice;
+      const profitLossPercentage = ((exitPrice - entryPrice) / entryPrice) * 100;
+
       if (profitLoss > 0) {
         winningTrades++;
+        totalWinAmount += profitLoss;
       } else {
         losingTrades++;
+        totalLossAmount += Math.abs(profitLoss);
       }
 
       trades.push({
@@ -163,18 +229,21 @@ export class BacktestingService {
         price: exitPrice,
         timestamp: new Date(lastKline.closeTime),
         reason: 'Cierre final del backtest',
+        profitLoss,
+        profitLossPercentage,
       });
     }
 
     const finalBalance = balance;
     const profitLoss = finalBalance - config.initialBalance;
     const profitLossPercentage = (profitLoss / config.initialBalance) * 100;
-    const winRate =
-      trades.length > 0
-        ? (winningTrades / (winningTrades + losingTrades)) * 100
-        : 0;
+    const totalTradePairs = winningTrades + losingTrades;
+    const winRate = totalTradePairs > 0 ? (winningTrades / totalTradePairs) * 100 : 0;
 
-    // Calcular max drawdown
+    // Calcular métricas adicionales
+    const averageWin = winningTrades > 0 ? totalWinAmount / winningTrades : 0;
+    const averageLoss = losingTrades > 0 ? totalLossAmount / losingTrades : 0;
+    const profitFactor = totalLossAmount > 0 ? totalWinAmount / totalLossAmount : totalWinAmount > 0 ? Infinity : 0;
     const maxDrawdown = this.calculateMaxDrawdown(equity);
 
     return {
@@ -184,7 +253,8 @@ export class BacktestingService {
       endDate: new Date(klines[klines.length - 1].closeTime),
       initialBalance: config.initialBalance,
       finalBalance,
-      totalTrades: trades.length,
+      totalOperations: trades.length, // Renombrado para claridad
+      completedTrades: totalTradePairs, // Nuevo: pares completos
       winningTrades,
       losingTrades,
       profitLoss,
@@ -193,12 +263,18 @@ export class BacktestingService {
       trades,
       equity,
       maxDrawdown,
+      averageWin,
+      averageLoss,
+      profitFactor,
+      stopLossTriggered,
+      takeProfitTriggered,
     };
   }
 
   private calculateMaxDrawdown(equity: number[]): number {
     let maxDrawdown = 0;
     let peak = equity[0];
+
     for (const value of equity) {
       if (value > peak) {
         peak = value;
@@ -208,19 +284,20 @@ export class BacktestingService {
         maxDrawdown = drawdown;
       }
     }
+
     return maxDrawdown;
   }
 
-  /**
-   * Ejecutar backtest en múltiples símbolos
-   */
   async runMultipleBacktests(
     symbols: string[],
     config: Omit<BacktestConfig, 'symbol'>
   ): Promise<BacktestResult[]> {
     return await Promise.all(
       symbols.map((symbol) =>
-        this.runBacktest({ ...config, symbol })
+        this.runBacktest({
+          ...config,
+          symbol,
+        })
       )
     );
   }

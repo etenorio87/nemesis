@@ -1,40 +1,38 @@
-import { Controller, Get, Query, ParseFloatPipe, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
-import { BacktestingService } from './backtesting.service';
-import { IntervalType } from '@nemesis/commons';
+import {Controller, Post, Body, ValidationPipe} from '@nestjs/common';
+import {CompareBacktestsDto} from './dto/compare-symbols.dto';
+import {BacktestingService} from './backtesting.service';
+import {RunBacktestDto} from './dto/run-backtest.dto';
 
 @Controller('backtest')
 export class BacktestingController {
-  constructor(private readonly backtestingService: BacktestingService) {}
+  constructor(private readonly backtestingService: BacktestingService) {
+  }
 
-  @Get('run')
+  @Post('run')
   async runBacktest(
-    @Query('symbol') symbol: string = 'BTCUSDT',
-    @Query('interval') interval: IntervalType = '15m',
-    @Query('balance', new DefaultValuePipe(10000), ParseFloatPipe) balance: number,
-    @Query('limit', new DefaultValuePipe(500), ParseIntPipe) limit: number,
-    @Query('commission', new DefaultValuePipe(0.001), ParseFloatPipe) commission: number
+    @Body(new ValidationPipe({ transform: true })) dto: RunBacktestDto
   ) {
     return await this.backtestingService.runBacktest({
-      symbol,
-      interval,
-      initialBalance: balance,
-      limit,
-      commissionRate: commission,
+      symbol: dto.symbol,
+      interval: dto.interval,
+      initialBalance: dto.initialBalance,
+      limit: dto.limit || 500,
+      commissionRate: dto.commissionRate || 0.001,
+      stopLossPercentage: dto.stopLossPercentage,
+      takeProfitPercentage: dto.takeProfitPercentage,
+      useTrailingStop: dto.useTrailingStop || false,
     });
   }
 
-  @Get('compare')
+  @Post('compare')
   async compareSymbols(
-    @Query('symbols') symbols: string = 'BTCUSDT,ETHUSDT,BNBUSDT',
-    @Query('interval') interval: IntervalType = '15m',
-    @Query('balance', new DefaultValuePipe(10000), ParseFloatPipe) balance: number,
-    @Query('limit', new DefaultValuePipe(500), ParseIntPipe) limit: number
+    @Body(new ValidationPipe({ transform: true })) dto: CompareBacktestsDto
   ) {
-    const symbolList = symbols.split(',');
-    return await this.backtestingService.runMultipleBacktests(symbolList, {
-      interval,
-      initialBalance: balance,
-      limit,
+    return await this.backtestingService.runMultipleBacktests(dto.symbols, {
+      interval: dto.interval,
+      initialBalance: dto.initialBalance,
+      limit: dto.limit || 500,
     });
   }
+
 }
