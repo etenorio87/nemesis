@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
 import { BinanceModule } from './features/binance/binance.module';
 import { StrategyModule } from './features/strategy/strategy.module';
 import { BacktestingModule } from './features/backtesting/backtesting.module';
+import { HealthModule } from './features/health/health.module';
 
 @Module({
   imports: [
@@ -14,8 +14,7 @@ import { BacktestingModule } from './features/backtesting/backtesting.module';
     BinanceModule,
     StrategyModule,
     BacktestingModule,
-  ],
-  controllers: [AppController],
-  providers: [],
+    HealthModule,
+  ]
 })
 export class AppModule {}
