@@ -1,96 +1,335 @@
-# NemesisNxApps
+# Nemesis Trading Bot 🤖📈
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+> Sistema automatizado de trading para Binance con análisis técnico y backtesting
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+[![Node.js](https://img.shields.io/badge/node-v22.16.0-green.svg)](https://nodejs.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-v11.0-red.svg)](https://nestjs.com/)
+[![Nx](https://img.shields.io/badge/Nx-v21.6.5-blue.svg)](https://nx.dev/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+## 📋 Tabla de Contenidos
 
-## Run tasks
+- [Características](#-características)
+- [Arquitectura](#-arquitectura)
+- [Requisitos](#-requisitos)
+- [Instalación](#-instalación)
+- [Configuración](#-configuración)
+- [Uso](#-uso)
+- [API Endpoints](#-api-endpoints)
+- [Estrategia de Trading](#-estrategia-de-trading)
+- [Roadmap](#-roadmap)
+- [Contribución](#-contribución)
 
-To run tasks with Nx use:
+## ✨ Características
 
-```sh
-npx nx <target> <project-name>
+### Versión Actual (MVP)
+
+- 🔍 **Análisis Técnico Avanzado**
+  - RSI (Relative Strength Index)
+  - MACD (Moving Average Convergence Divergence)
+  - SMA y EMA (Simple & Exponential Moving Averages)
+
+- 📊 **Sistema de Señales**
+  - Generación automática de señales BUY/SELL/HOLD
+  - Niveles de confianza (0-100%)
+  - Explicación detallada de cada señal
+
+- 📈 **Backtesting Completo**
+  - Simulación de trading con datos históricos
+  - Cálculo de métricas: P/L, Win Rate, Max Drawdown
+  - Comisiones de trading configurables
+  - Comparación entre múltiples símbolos
+
+- 🔌 **Integración con Binance**
+  - Soporte para Testnet y Mainnet
+  - Obtención de datos en tiempo real
+  - Múltiples intervalos de tiempo (1m, 5m, 15m, 1h, 4h, 1d)
+
+### En Desarrollo
+
+- 📱 App móvil para gestión del bot
+- 🤖 Ejecución automática de trades
+- 📧 Sistema de notificaciones
+- 💾 Almacenamiento persistente (Redis + MariaDB)
+
+## 🏗️ Arquitectura
+
+Este proyecto utiliza **Nx Monorepo** con la siguiente estructura:
+
+```
+nemesis/
+├── apps/
+│   ├── nemesis-server/      # Backend NestJS
+│   │   ├── binance/          # Integración con Binance API
+│   │   ├── analysis/         # Análisis técnico
+│   │   ├── trading/          # Lógica de trading
+│   │   └── backtesting/      # Sistema de backtesting
+│   │
+│   └── nemesis-app/          # App móvil (Angular/Ionic) - WIP
+│
+├── libs/
+│   └── nemesis-commons/      # Tipos y utilidades compartidas
+│
+└── docker-compose.yml        # Redis + MariaDB (futuro)
 ```
 
-For example:
+## 🔧 Requisitos
 
-```sh
-npx nx build myproject
+- **Node.js**: v22.16.0 o superior
+- **NPM**: v11.4.1 o superior
+- **Cuenta Binance**: Para obtener API keys ([Testnet](https://testnet.binance.vision/))
+
+## 📦 Instalación
+
+1. **Clonar el repositorio**
+
+```bash
+git clone https://github.com/tu-usuario/nemesis.git
+cd nemesis
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+2. **Instalar dependencias**
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Add new projects
-
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
+```bash
+npm install
 ```
 
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
+3. **Configurar variables de entorno**
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
+Crea un archivo `.env` en la raíz del proyecto:
 
-# Generate a library
-npx nx g @nx/react:lib some-lib
+```env
+# Binance API Configuration
+BINANCE_API_KEY=your_api_key_here
+BINANCE_API_SECRET=your_api_secret_here
+BINANCE_USE_TESTNET=true
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+4. **Obtener API Keys de Binance**
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Para testing seguro, usa [Binance Testnet](https://testnet.binance.vision/):
+- Accede con tu cuenta GitHub
+- Genera tus API Keys
+- Copia las credenciales al archivo `.env`
 
-## Set up CI!
+## 🚀 Uso
 
-### Step 1
+### Iniciar el servidor
 
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
+```bash
+npm run serve:server
+# o
+npx nx serve nemesis-server
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+El servidor estará disponible en `http://localhost:3000`
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Verificar conexión
 
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+```bash
+curl http://localhost:3000/health
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Respuesta esperada:
+```json
+{
+  "status": "ok",
+  "binanceConnected": true,
+  "timestamp": "2025-10-21T10:00:00.000Z"
+}
+```
 
-## Install Nx Console
+## 🔌 API Endpoints
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+### Health Check
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```bash
+GET /health
+```
 
-## Useful links
+Verifica el estado del servidor y la conexión con Binance.
 
-Learn more:
+### Análisis de Símbolos
 
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```bash
+GET /trading/analyze?symbol=BTCUSDT&interval=15m&limit=100
+```
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+**Parámetros:**
+- `symbol`: Par de trading (ej: BTCUSDT, ETHUSDT)
+- `interval`: 1m, 5m, 15m, 1h, 4h, 1d
+- `limit`: Número de velas (default: 100)
+
+**Respuesta:**
+```json
+{
+  "symbol": "BTCUSDT",
+  "signal": "BUY",
+  "confidence": 75,
+  "reason": "Señal de COMPRA: RSI sobreventa (<30), MACD crossover alcista",
+  "price": 67500.00,
+  "timestamp": "2025-10-21T10:00:00.000Z",
+  "indicators": {
+    "rsi": 28.5,
+    "macd": {
+      "MACD": 150.23,
+      "signal": 120.45,
+      "histogram": 29.78
+    },
+    "sma": 66800.00,
+    "ema": 67000.00
+  }
+}
+```
+
+### Múltiples Señales
+
+```bash
+GET /trading/signals?symbols=BTCUSDT,ETHUSDT,BNBUSDT
+```
+
+Obtiene señales para múltiples símbolos simultáneamente.
+
+### Backtesting
+
+```bash
+GET /backtest/run?symbol=BTCUSDT&interval=1h&balance=10000&limit=500
+```
+
+**Parámetros:**
+- `symbol`: Par de trading
+- `interval`: Intervalo temporal
+- `balance`: Balance inicial en USDT (default: 10000)
+- `limit`: Número de velas históricas (default: 500)
+- `commission`: Comisión por trade (default: 0.001 = 0.1%)
+
+**Respuesta:**
+```json
+{
+  "symbol": "BTCUSDT",
+  "interval": "1h",
+  "startDate": "2025-09-01T00:00:00.000Z",
+  "endDate": "2025-10-21T10:00:00.000Z",
+  "initialBalance": 10000,
+  "finalBalance": 12450.75,
+  "totalTrades": 28,
+  "winningTrades": 18,
+  "losingTrades": 10,
+  "profitLoss": 2450.75,
+  "profitLossPercentage": 24.51,
+  "winRate": 64.29,
+  "maxDrawdown": 8.45,
+  "trades": [...]
+}
+```
+
+### Comparar Símbolos (Backtesting)
+
+```bash
+GET /backtest/compare?symbols=BTCUSDT,ETHUSDT,BNBUSDT&interval=1h&balance=10000
+```
+
+Ejecuta backtesting en múltiples símbolos para comparar rendimiento.
+
+## 📊 Estrategia de Trading
+
+### Indicadores Utilizados
+
+1. **RSI (14 periodos)**
+  - Sobreventa: RSI < 30 → Señal de compra
+  - Sobrecompra: RSI > 70 → Señal de venta
+
+2. **MACD (12, 26, 9)**
+  - Crossover alcista: MACD > Signal → Señal de compra
+  - Crossover bajista: MACD < Signal → Señal de venta
+
+3. **Medias Móviles (SMA/EMA 20)**
+  - Precio sobre medias → Tendencia alcista
+  - Precio bajo medias → Tendencia bajista
+
+### Sistema de Puntuación
+
+Cada señal tiene un nivel de confianza (0-100%) basado en:
+- **RSI extremo**: 40 puntos
+- **RSI moderado**: 20 puntos
+- **MACD crossover**: 30 puntos
+- **Posición vs medias**: 20 puntos
+
+**Umbrales de operación:**
+- BUY: Confianza ≥ 60%
+- SELL: Confianza ≥ 50%
+- HOLD: Confianza < 50%
+
+### Gestión de Riesgo (Backtesting)
+
+- Inversión por trade: 95% del balance disponible
+- Comisión predeterminada: 0.1% por operación
+- Cierre de posiciones: Basado en señales de venta
+
+## 🗺️ Roadmap
+
+### Fase 1: MVP ✅
+- [x] Integración con Binance API
+- [x] Análisis técnico básico (RSI, MACD, SMA, EMA)
+- [x] Sistema de señales
+- [x] Backtesting completo
+
+### Fase 2: Automatización 🚧
+- [ ] Ejecución automática de trades
+- [ ] Stop-loss y take-profit dinámicos
+- [ ] Sistema de notificaciones (Telegram/Email)
+- [ ] Dashboard web en tiempo real
+
+### Fase 3: Optimización 📋
+- [ ] Machine Learning para optimizar parámetros
+- [ ] Múltiples estrategias de trading
+- [ ] Portfolio diversificado
+- [ ] Paper trading continuo
+
+### Fase 4: Producción 📋
+- [ ] Base de datos persistente (Redis + MariaDB)
+- [ ] Sistema de logging avanzado
+- [ ] Monitoreo y alertas
+- [ ] App móvil funcional
+
+## 🤝 Contribución
+
+Las contribuciones son bienvenidas. Por favor:
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## ⚠️ Disclaimer
+
+Este software se proporciona "tal cual" sin garantías de ningún tipo. El trading de criptomonedas conlleva riesgos significativos. **Nunca inviertas más de lo que puedas permitirte perder.**
+
+- Este bot es experimental y debe usarse solo con fines educativos
+- Siempre prueba primero en Testnet
+- Realiza tu propia investigación (DYOR)
+- El rendimiento pasado no garantiza resultados futuros
+
+## 📄 Licencia
+
+MIT License - ver el archivo [LICENSE](LICENSE) para más detalles.
+
+## 👨‍💻 Autor
+
+**Tu Nombre**
+- GitHub: [@etenorio87](https://github.com/etenorio87)
+
+---
+
+⭐ Si este proyecto te resulta útil, considera darle una estrella!
+
+**Construido con:**
+- [NestJS](https://nestjs.com/) - Framework backend
+- [Nx](https://nx.dev/) - Monorepo tooling
+- [Binance API Node](https://github.com/Ashlar/binance-api-node) - Cliente de Binance
+- [Technical Indicators](https://github.com/anandanand84/technicalindicators) - Análisis técnico

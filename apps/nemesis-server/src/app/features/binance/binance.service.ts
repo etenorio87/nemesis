@@ -1,6 +1,6 @@
 import {Injectable, Logger} from '@nestjs/common';
-import Binance from 'binance-api-node';
-import {BinanceConfig, MarketData} from '@nemesis/commons';
+import Binance, {CandleChartInterval} from 'binance-api-node';
+import {BinanceConfig, Kline, MarketData, IntervalType} from '@nemesis/commons';
 
 @Injectable()
 export class BinanceService {
@@ -56,6 +56,36 @@ export class BinanceService {
       return await this.client.accountInfo();
     } catch (error) {
       this.logger.error('Error getting account info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene klines (candlesticks) históricos
+   */
+  async getKlines(
+    symbol: string,
+    interval: IntervalType = '15m',
+    limit: number = 100
+  ): Promise<Kline[]> {
+    try {
+      const candles = await this.client.candles({
+        symbol,
+        interval: interval as CandleChartInterval,
+        limit,
+      });
+
+      return candles.map((candle) => ({
+        openTime: candle.openTime,
+        open: parseFloat(candle.open),
+        high: parseFloat(candle.high),
+        low: parseFloat(candle.low),
+        close: parseFloat(candle.close),
+        volume: parseFloat(candle.volume),
+        closeTime: candle.closeTime,
+      }));
+    } catch (error) {
+      this.logger.error(`Error getting klines for ${symbol}:`, error);
       throw error;
     }
   }
