@@ -1,11 +1,27 @@
-import { Controller, Get } from '@nestjs/common';
+import {Controller, Get, Param} from '@nestjs/common';
+import {BinanceService} from './features/binance/binance.service';
 
 @Controller()
 export class AppController {
-  constructor() {}
+  constructor(private readonly binance: BinanceService) {}
 
-  @Get()
-  getData() {
-    return { message: 'Hello API' };
+  @Get('health')
+  async health() {
+    const isConnected = await this.binance.testConnection();
+    return {
+      status: 'ok',
+      binanceConnected: isConnected,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Get('price/:symbol')
+  async getPrice(@Param('symbol') symbol: string) {
+    return await this.binance.getMarketPrice(symbol);
+  }
+
+  @Get('account')
+  async getAccount() {
+    return await this.binance.getAccountInfo();
   }
 }
