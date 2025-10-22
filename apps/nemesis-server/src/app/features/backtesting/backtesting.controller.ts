@@ -1,12 +1,11 @@
-import {Controller, Post, Body, ValidationPipe} from '@nestjs/common';
-import {CompareBacktestsDto} from './dto/compare-symbols.dto';
-import {BacktestingService} from './backtesting.service';
-import {RunBacktestDto} from './dto/run-backtest.dto';
+import { Controller, Post, Body, ValidationPipe } from '@nestjs/common';
+import { CompareBacktestsDto } from './dto/compare-symbols.dto';
+import { BacktestingService } from './backtesting.service';
+import { RunBacktestDto } from './dto/run-backtest.dto';
 
 @Controller('backtest')
 export class BacktestingController {
-  constructor(private readonly backtestingService: BacktestingService) {
-  }
+  constructor(private readonly backtestingService: BacktestingService) {}
 
   @Post('run')
   async runBacktest(
@@ -21,6 +20,7 @@ export class BacktestingController {
       stopLossPercentage: dto.stopLossPercentage,
       takeProfitPercentage: dto.takeProfitPercentage,
       useTrailingStop: dto.useTrailingStop || false,
+      indicatorSettings: dto.indicatorSettings, // 🆕 NUEVO
     });
   }
 
@@ -32,7 +32,7 @@ export class BacktestingController {
       interval: dto.interval,
       initialBalance: dto.initialBalance,
       limit: dto.limit || 500,
+      indicatorSettings: dto.indicatorSettings, // 🆕 NUEVO
     });
   }
-
 }

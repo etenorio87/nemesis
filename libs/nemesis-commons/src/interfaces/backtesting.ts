@@ -1,53 +1,5 @@
-import {IntervalType, OrderSideType, SignalType} from './types';
-
-export interface BinanceConfig {
-  apiKey: string;
-  apiSecret: string;
-  apiBaseUrl: string;
-  apiWsUrl: string;
-}
-
-// Tipos básicos para el trading bot
-export interface MarketData {
-  symbol: string;
-  price: number;
-  volume: number;
-  timestamp: Date;
-}
-
-export interface Kline {
-  openTime: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  closeTime: number;
-}
-
-export interface TechnicalAnalysis {
-  symbol: string;
-  interval: string;
-  rsi?: number;
-  macd?: {
-    MACD: number;
-    signal: number;
-    histogram: number;
-  };
-  sma?: number;
-  ema?: number;
-  timestamp: Date;
-}
-
-export interface TradeSignal {
-  symbol: string;
-  signal: SignalType;
-  confidence: number; // 0-100
-  reason: string;
-  price: number;
-  timestamp: Date;
-  indicators?: TechnicalAnalysis;
-}
+import {IntervalType, OrderSideType} from '../types';
+import {IndicatorSettings} from './indicators';
 
 export interface BacktestTrade {
   type: OrderSideType;
@@ -81,6 +33,7 @@ export interface BacktestResult {
   profitFactor?: number;
   stopLossTriggered?: number;
   takeProfitTriggered?: number;
+  indicatorSettings?: IndicatorSettings;
 }
 
 
@@ -95,4 +48,5 @@ export interface BacktestConfig {
   stopLossPercentage?: number; // % de pérdida para cerrar posición
   takeProfitPercentage?: number; // % de ganancia para cerrar posición
   useTrailingStop?: boolean; // Stop-loss dinámico
+  indicatorSettings?: IndicatorSettings;
 }

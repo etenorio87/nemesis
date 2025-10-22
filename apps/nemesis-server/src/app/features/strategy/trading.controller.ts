@@ -1,30 +1,29 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { IntervalType } from '@nemesis/commons';
+import { Body, Controller, Post } from '@nestjs/common';
 import { TradingService } from './trading.service';
+import {AnalyzeSymbolDto} from './dto/analyze-symbol.dto';
 
 @Controller('trading')
 export class TradingController {
   constructor(private readonly tradingService: TradingService) {}
 
-  @Get('analyze')
-  async analyzeSymbol(
-    @Query('symbol') symbol: string = 'BTCUSDT',
-    @Query('interval') interval: IntervalType = '15m',
-    @Query('limit') limit: string = '100'
-  ) {
+  @Post('analyze')
+  async analyzeSymbol(@Body() dto: AnalyzeSymbolDto) {
     return await this.tradingService.analyzeSymbol(
-      symbol,
-      interval,
-      parseInt(limit)
+      dto.symbol,
+      dto.interval,
+      dto.limit ?? 100,
+      dto.indicatorSettings // 🆕 Pasar configuración de indicadores
     );
   }
 
-  @Get('signals')
-  async getSignals(@Query('symbols') symbols?: string) {
-    const symbolList = symbols
-      ? symbols.split(',')
-      : ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
-
-    return await this.tradingService.getMultipleSignals(symbolList);
+  @Post('signals')
+  async getSignals(
+    @Body() dto: { symbols: string[]; interval: string; indicatorSettings?: any }
+  ) {
+    return await this.tradingService.getMultipleSignals(
+      dto.symbols,
+      dto.interval as any,
+      dto.indicatorSettings // 🆕 Pasar configuración de indicadores
+    );
   }
 }

@@ -1,5 +1,7 @@
-import {IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Max, Min} from 'class-validator';
+import {IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Max, Min, ValidateNested} from 'class-validator';
+import {Type} from 'class-transformer';
 import {IntervalType} from '@nemesis/commons';
+import {IndicatorSettingsDto} from './indicator-settings.dto';
 
 export class RunBacktestDto {
   @IsString()
@@ -39,4 +41,9 @@ export class RunBacktestDto {
   @IsOptional()
   @IsBoolean()
   useTrailingStop?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => IndicatorSettingsDto)
+  indicatorSettings?: IndicatorSettingsDto;
 }

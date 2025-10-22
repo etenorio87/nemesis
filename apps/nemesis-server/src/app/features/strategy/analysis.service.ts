@@ -5,6 +5,8 @@ import {
   TechnicalAnalysis,
   TradeSignal,
   IntervalType,
+  IndicatorSettings,
+  DEFAULT_INDICATOR_SETTINGS,
 } from '@nemesis/commons';
 
 @Injectable()
@@ -13,45 +15,49 @@ export class AnalysisService {
 
   /**
    * Procesa klines y calcula indicadores técnicos
+   * 🆕 Ahora acepta configuración personalizada de indicadores
    */
   analyzeTechnicals(
     klines: Kline[],
     symbol: string,
-    interval: IntervalType
+    interval: IntervalType,
+    customSettings?: IndicatorSettings // 🆕 NUEVO PARÁMETRO
   ): TechnicalAnalysis {
+    // 🆕 Merge de configuración personalizada con defaults
+    const settings = this.mergeWithDefaults(customSettings);
     const closes = klines.map((k) => k.close);
     const highs = klines.map((k) => k.high);
     const lows = klines.map((k) => k.low);
 
-    // RSI (14 periodos)
+    // RSI - Ahora usa settings.rsi.period
     const rsiValues = RSI.calculate({
       values: closes,
-      period: 14,
+      period: settings.rsi.period,
     });
     const currentRSI = rsiValues[rsiValues.length - 1];
 
-    // MACD (12, 26, 9)
+    // MACD - Ahora usa settings.macd
     const macdValues = MACD.calculate({
       values: closes,
-      fastPeriod: 12,
-      slowPeriod: 26,
-      signalPeriod: 9,
+      fastPeriod: settings.macd.fastPeriod,
+      slowPeriod: settings.macd.slowPeriod,
+      signalPeriod: settings.macd.signalPeriod,
       SimpleMAOscillator: false,
       SimpleMASignal: false,
     });
     const currentMACD = macdValues[macdValues.length - 1];
 
-    // SMA (20 periodos)
+    // SMA - Ahora usa settings.sma.period
     const smaValues = SMA.calculate({
       values: closes,
-      period: 20,
+      period: settings.sma.period,
     });
     const currentSMA = smaValues[smaValues.length - 1];
 
-    // EMA (20 periodos)
+    // EMA - Ahora usa settings.ema.period
     const emaValues = EMA.calculate({
       values: closes,
-      period: 20,
+      period: settings.ema.period,
     });
     const currentEMA = emaValues[emaValues.length - 1];
 
@@ -73,12 +79,13 @@ export class AnalysisService {
   }
 
   /**
-   * Genera señal de trading basada en análisis técnico simple
-   * Estrategia: RSI + MACD crossover
+   * Genera señal de trading basada en análisis técnico
+   * 🆕 Ahora retorna la configuración usada en la señal
    */
   generateSignal(
     analysis: TechnicalAnalysis,
-    currentPrice: number
+    currentPrice: number,
+    indicatorSettings?: IndicatorSettings // 🆕 NUEVO PARÁMETRO
   ): TradeSignal {
     const signals: string[] = [];
     let buyScore = 0;
@@ -133,7 +140,7 @@ export class AnalysisService {
     let confidence: number;
     let reason: string;
 
-    if (buyScore > sellScore && buyScore >= 50) {
+    if (buyScore > sellScore && buyScore >= 60) {
       signal = 'BUY';
       confidence = Math.min(buyScore, 100);
       reason = `Señal de COMPRA: ${signals.join(', ')}`;
@@ -159,6 +166,31 @@ export class AnalysisService {
       price: currentPrice,
       timestamp: new Date(),
       indicators: analysis,
+      indicatorSettings: indicatorSettings, // 🆕 NUEVO: Documenta la configuración usada
+    };
+  }
+
+  /**
+   * 🆕 NUEVO MÉTODO: Merge configuración personalizada con defaults
+   */
+  private mergeWithDefaults(
+    customSettings?: IndicatorSettings
+  ): Required<IndicatorSettings> {
+    return {
+      rsi: {
+        period: customSettings?.rsi?.period ?? DEFAULT_INDICATOR_SETTINGS.rsi.period,
+      },
+      macd: {
+        fastPeriod: customSettings?.macd?.fastPeriod ?? DEFAULT_INDICATOR_SETTINGS.macd.fastPeriod,
+        slowPeriod: customSettings?.macd?.slowPeriod ?? DEFAULT_INDICATOR_SETTINGS.macd.slowPeriod,
+        signalPeriod: customSettings?.macd?.signalPeriod ?? DEFAULT_INDICATOR_SETTINGS.macd.signalPeriod,
+      },
+      sma: {
+        period: customSettings?.sma?.period ?? DEFAULT_INDICATOR_SETTINGS.sma.period,
+      },
+      ema: {
+        period: customSettings?.ema?.period ?? DEFAULT_INDICATOR_SETTINGS.ema.period,
+      },
     };
   }
 }

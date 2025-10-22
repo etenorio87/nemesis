@@ -1,7 +1,12 @@
-import {Injectable, Logger} from '@nestjs/common';
-import {BacktestConfig, BacktestResult, BacktestTrade, Kline,} from '@nemesis/commons';
-import {BinanceService} from '../binance/binance.service';
-import {AnalysisService} from '../strategy/analysis.service';
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  BacktestConfig,
+  BacktestResult,
+  BacktestTrade,
+  Kline,
+} from '@nemesis/commons';
+import { BinanceService } from '../binance/binance.service';
+import { AnalysisService } from '../strategy/analysis.service';
 
 @Injectable()
 export class BacktestingService {
@@ -68,16 +73,18 @@ export class BacktestingService {
       const historicalData = klines.slice(0, i + 1);
       const currentKline = klines[i];
 
-      // Analizar técnicamente
+      // 🆕 Analizar técnicamente CON configuración personalizada
       const analysis = this.analysisService.analyzeTechnicals(
         historicalData,
         config.symbol,
-        config.interval
+        config.interval,
+        config.indicatorSettings // 🆕 Pasar configuración de indicadores
       );
 
       const signal = this.analysisService.generateSignal(
         analysis,
-        currentKline.close
+        currentKline.close,
+        config.indicatorSettings // 🆕 Pasar configuración para documentar
       );
 
       if (position === null) {
@@ -117,56 +124,53 @@ export class BacktestingService {
         let shouldClose = false;
         let closeReason = '';
 
-        // 1. Verificar Stop Loss
-        if (stopLossPercentage !== null) {
+        // 1. Verificar Stop-Loss
+        if (stopLossPercentage) {
           let stopLossPrice: number;
 
           if (useTrailingStop) {
-            // Trailing Stop: se mueve con el precio
+            // Trailing Stop: Se mueve con el precio
             stopLossPrice =
               highestPriceInPosition * (1 - stopLossPercentage / 100);
           } else {
-            // Stop Loss fijo desde entrada
+            // Stop Loss Fijo
             stopLossPrice = entryPrice * (1 - stopLossPercentage / 100);
           }
 
           if (currentPrice <= stopLossPrice) {
             shouldClose = true;
-            closeReason = useTrailingStop
-              ? `Trailing Stop Loss activado (-${stopLossPercentage}% desde máximo)`
-              : `Stop Loss activado (-${stopLossPercentage}%)`;
+            closeReason = `Stop-Loss activado (${useTrailingStop ? 'Trailing' : 'Fijo'})`;
             stopLossTriggered++;
           }
         }
 
-        // 2. Verificar Take Profit
-        if (!shouldClose && takeProfitPercentage !== null) {
+        // 2. Verificar Take-Profit
+        if (!shouldClose && takeProfitPercentage) {
           const takeProfitPrice =
             entryPrice * (1 + takeProfitPercentage / 100);
 
           if (currentPrice >= takeProfitPrice) {
             shouldClose = true;
-            closeReason = `Take Profit activado (+${takeProfitPercentage}%)`;
+            closeReason = 'Take-Profit alcanzado';
             takeProfitTriggered++;
           }
         }
 
-        // 3. Verificar señal de venta del análisis técnico
+        // 3. Verificar señal de SELL
         if (!shouldClose && signal.signal === 'SELL' && signal.confidence >= 50) {
           shouldClose = true;
-          closeReason = `Señal técnica: ${signal.reason}`;
+          closeReason = signal.reason;
         }
 
-        // Ejecutar cierre de posición
+        // Cerrar posición si alguna condición se cumplió
         if (shouldClose) {
-          const exitPrice = currentPrice;
-          const saleAmount = positionSize * exitPrice;
-          const commission = saleAmount * commissionRate;
-          const netSaleAmount = saleAmount - commission;
-          balance += netSaleAmount;
+          const sellValue = positionSize * currentPrice;
+          const commission = sellValue * commissionRate;
+          const netProceeds = sellValue - commission;
 
-          const profitLoss = netSaleAmount - positionSize * entryPrice;
-          const profitLossPercentage = priceChangePercent;
+          balance += netProceeds;
+          const profitLoss = netProceeds - (config.initialBalance - balance);
+          const profitLossPercentage = (profitLoss / entryPrice) * 100;
 
           if (profitLoss > 0) {
             winningTrades++;
@@ -178,7 +182,7 @@ export class BacktestingService {
 
           trades.push({
             type: 'SELL',
-            price: exitPrice,
+            price: currentPrice,
             timestamp: new Date(currentKline.closeTime),
             reason: closeReason,
             profitLoss,
@@ -186,7 +190,7 @@ export class BacktestingService {
           });
 
           this.logger.debug(
-            `SELL at ${exitPrice} - P/L: ${profitLoss.toFixed(2)} (${profitLossPercentage.toFixed(2)}%) - ${closeReason}`
+            `SELL at ${currentPrice} - ${closeReason} - P/L: ${profitLossPercentage.toFixed(2)}%`
           );
 
           position = null;
@@ -196,25 +200,25 @@ export class BacktestingService {
         }
       }
 
-      // Calcular equity actual
-      let currentEquity = balance;
-      if (position === 'LONG') {
-        currentEquity += positionSize * currentKline.close;
-      }
+      // Calcular equity actual (balance + valor de posiciones abiertas)
+      const currentEquity =
+        position === 'LONG'
+          ? balance + positionSize * currentKline.close
+          : balance;
+
       equity.push(currentEquity);
     }
 
-    // Cerrar posición si queda abierta al final
+    // Cerrar posición abierta al final si existe
     if (position === 'LONG') {
-      const lastKline = klines[klines.length - 1];
-      const exitPrice = lastKline.close;
-      const saleAmount = positionSize * exitPrice;
-      const commission = saleAmount * commissionRate;
-      const netSaleAmount = saleAmount - commission;
-      balance += netSaleAmount;
+      const finalPrice = klines[klines.length - 1].close;
+      const sellValue = positionSize * finalPrice;
+      const commission = sellValue * commissionRate;
+      const netProceeds = sellValue - commission;
 
-      const profitLoss = netSaleAmount - positionSize * entryPrice;
-      const profitLossPercentage = ((exitPrice - entryPrice) / entryPrice) * 100;
+      balance += netProceeds;
+      const profitLoss = netProceeds - (config.initialBalance - balance);
+      const profitLossPercentage = (profitLoss / entryPrice) * 100;
 
       if (profitLoss > 0) {
         winningTrades++;
@@ -226,24 +230,36 @@ export class BacktestingService {
 
       trades.push({
         type: 'SELL',
-        price: exitPrice,
-        timestamp: new Date(lastKline.closeTime),
-        reason: 'Cierre final del backtest',
+        price: finalPrice,
+        timestamp: new Date(klines[klines.length - 1].closeTime),
+        reason: 'Cierre forzado al final del backtest',
         profitLoss,
         profitLossPercentage,
       });
+
+      position = null;
     }
 
     const finalBalance = balance;
     const profitLoss = finalBalance - config.initialBalance;
-    const profitLossPercentage = (profitLoss / config.initialBalance) * 100;
-    const totalTradePairs = winningTrades + losingTrades;
-    const winRate = totalTradePairs > 0 ? (winningTrades / totalTradePairs) * 100 : 0;
+    const profitLossPercentage =
+      (profitLoss / config.initialBalance) * 100;
+
+    // Calcular pares completos (BUY + SELL)
+    const totalTradePairs = Math.floor(trades.length / 2);
+    const winRate = totalTradePairs > 0
+      ? (winningTrades / totalTradePairs) * 100
+      : 0;
 
     // Calcular métricas adicionales
     const averageWin = winningTrades > 0 ? totalWinAmount / winningTrades : 0;
     const averageLoss = losingTrades > 0 ? totalLossAmount / losingTrades : 0;
-    const profitFactor = totalLossAmount > 0 ? totalWinAmount / totalLossAmount : totalWinAmount > 0 ? Infinity : 0;
+    const profitFactor =
+      totalLossAmount > 0
+        ? totalWinAmount / totalLossAmount
+        : totalWinAmount > 0
+          ? Infinity
+          : 0;
     const maxDrawdown = this.calculateMaxDrawdown(equity);
 
     return {
@@ -253,8 +269,8 @@ export class BacktestingService {
       endDate: new Date(klines[klines.length - 1].closeTime),
       initialBalance: config.initialBalance,
       finalBalance,
-      totalOperations: trades.length, // Renombrado para claridad
-      completedTrades: totalTradePairs, // Nuevo: pares completos
+      totalOperations: trades.length,
+      completedTrades: totalTradePairs,
       winningTrades,
       losingTrades,
       profitLoss,
@@ -268,6 +284,7 @@ export class BacktestingService {
       profitFactor,
       stopLossTriggered,
       takeProfitTriggered,
+      indicatorSettings: config.indicatorSettings, // 🆕 NUEVO: Documentar configuración usada
     };
   }
 

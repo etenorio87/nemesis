@@ -1,18 +1,14 @@
 import { IsEnum, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IntervalType } from '@nemesis/commons';
-import {IndicatorSettingsDto} from './indicator-settings.dto';
+import { IndicatorSettingsDto } from '../../backtesting/dto/indicator-settings.dto';
 
-export class CompareBacktestsDto {
-  @IsString({ each: true })
-  symbols: string[];
+export class AnalyzeSymbolDto {
+  @IsString()
+  symbol: string;
 
   @IsEnum(['1m', '5m', '15m', '1h', '4h', '1d'])
   interval: IntervalType;
-
-  @IsNumber()
-  @Min(100)
-  initialBalance: number;
 
   @IsOptional()
   @IsNumber()
@@ -20,7 +16,6 @@ export class CompareBacktestsDto {
   @Max(1000)
   limit?: number;
 
-  // 🆕 NUEVO CAMPO
   @IsOptional()
   @ValidateNested()
   @Type(() => IndicatorSettingsDto)
