@@ -19,6 +19,12 @@ export interface EmaSettings {
   period: number; // Número de períodos (default: 20)
 }
 
+export interface EmaResults {
+  ema20: number[];
+  ema50: number[];
+  ema200: number[];
+}
+
 export interface IndicatorSettings {
   rsi?: RsiSettings;
   macd?: MacdSettings;
