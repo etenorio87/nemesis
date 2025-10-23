@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 🤖 CONFIGURACIÓN DEL BOT
+// ==========================================
+
+model BotConfig {
+  id      Int    @id @default(autoincrement())
+  version String @default("1.0.0")
+
+  // Indicadores
+  rsiPeriod        Int @default(14)
+  macdFastPeriod   Int @default(12)
+  macdSlowPeriod   Int @default(26)
+  macdSignalPeriod Int @default(9)
+  smaPeriod        Int @default(20)
+  emaPeriod        Int @default(20)
+
+  // Detección de Tendencias
+  adxPeriod      Int @default(14)
+  adxThreshold   Int @default(25)
+  ema20Period    Int @default(20)
+  ema50Period    Int @default(50)
+  ema200Period   Int @default(200)
+  lookbackPeriod Int @default(20)
+
+  // Trading
+  defaultStopLoss   Float   @default(2.0)
+  defaultTakeProfit Float   @default(5.0)
+  useTrailingStop   Boolean @default(false)
+  commissionRate    Float   @default(0.001)
+  enableTrendFilter Boolean @default(true)
+  minConfidenceBuy  Int     @default(60)
+  minConfidenceSell Int     @default(50)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_config")
+}
+
+// ==========================================
+// 📊 HISTORIAL DE TRADES (para futuro)
+// ==========================================
+
+model Trade {
+  id                Int      @id @default(autoincrement())
+  symbol            String
+  type              String // BUY, SELL
+  price             Float
+  quantity          Float
+  timestamp         DateTime
+  reason            String   @db.Text
+  profitLoss        Float?
+  profitLossPercent Float?
+
+  createdAt DateTime @default(now())
+
+  @@index([symbol])
+  @@index([timestamp])
+  @@map("trades")
+}
+
+// ==========================================
+// 📈 SEÑALES GENERADAS (para futuro)
+// ==========================================
+
+model Signal {
+  id         Int      @id @default(autoincrement())
+  symbol     String
+  signal     String // BUY, SELL, HOLD
+  confidence Int
+  reason     String   @db.Text
+  price      Float
+  timestamp  DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([symbol])
+  @@index([timestamp])
+  @@map("signals")
+}
+
+// ==========================================
+// 🎯 RESULTADOS DE BACKTESTS (para futuro)
+// ==========================================
+
+model BacktestResult {
+  id                Int      @id @default(autoincrement())
+  symbol            String
+  interval          String
+  startDate         DateTime
+  endDate           DateTime
+  initialBalance    Float
+  finalBalance      Float
+  profitLoss        Float
+  profitLossPercent Float
+  winRate           Float
+  totalTrades       Int
+  winningTrades     Int
+  losingTrades      Int
+  maxDrawdown       Float
+
+  // Configuración usada
+  configSnapshot Json // Guardar toda la config como JSON
+
+  createdAt DateTime @default(now())
+
+  @@index([symbol])
+  @@index([createdAt])
+  @@map("backtest_results")
+}

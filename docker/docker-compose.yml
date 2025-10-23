@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:11.5.2-ubi9
+    container_name: nemesis-mariadb
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: nemesis_root_password
+      MARIADB_DATABASE: nemesis_dev
+      MARIADB_USER: nemesis_user
+      MARIADB_PASSWORD: nemesis_1qazxsw2
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - nemesis-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nemesis-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - nemesis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Opcional: Adminer para administrar MySQL visualmente
+  adminer:
+    image: adminer:latest
+    container_name: nemesis-adminer
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+    networks:
+      - nemesis-network
+    depends_on:
+      - mariadb
+
+  # Opcional: Redis Commander para administrar Redis visualmente
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: nemesis-redis-commander
+    restart: unless-stopped
+    ports:
+      - '8081:8081'
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:nemesis_redis_password
+    networks:
+      - nemesis-network
+    depends_on:
+      - redis
+
+volumes:
+  mariadb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  nemesis-network:
+    driver: bridge

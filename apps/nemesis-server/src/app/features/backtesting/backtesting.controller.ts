@@ -15,24 +15,7 @@ export class BacktestingController {
       symbol: dto.symbol,
       interval: dto.interval,
       initialBalance: dto.initialBalance,
-      limit: dto.limit || 500,
-      commissionRate: dto.commissionRate || 0.001,
-      stopLossPercentage: dto.stopLossPercentage,
-      takeProfitPercentage: dto.takeProfitPercentage,
-      useTrailingStop: dto.useTrailingStop || false,
-      indicatorSettings: dto.indicatorSettings, // 🆕 NUEVO
-    });
-  }
-
-  @Post('compare')
-  async compareSymbols(
-    @Body(new ValidationPipe({ transform: true })) dto: CompareBacktestsDto
-  ) {
-    return await this.backtestingService.runMultipleBacktests(dto.symbols, {
-      interval: dto.interval,
-      initialBalance: dto.initialBalance,
-      limit: dto.limit || 500,
-      indicatorSettings: dto.indicatorSettings, // 🆕 NUEVO
+      limit: dto.limit || 500
     });
   }
 }

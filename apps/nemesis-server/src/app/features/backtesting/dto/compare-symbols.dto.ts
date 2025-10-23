@@ -1,7 +1,5 @@
-import { IsEnum, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { IntervalType } from '@nemesis/commons';
-import {IndicatorSettingsDto} from './indicator-settings.dto';
 
 export class CompareBacktestsDto {
   @IsString({ each: true })
@@ -19,10 +17,4 @@ export class CompareBacktestsDto {
   @Min(50)
   @Max(1000)
   limit?: number;
-
-  // 🆕 NUEVO CAMPO
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => IndicatorSettingsDto)
-  indicatorSettings?: IndicatorSettingsDto;
 }

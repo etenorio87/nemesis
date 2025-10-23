@@ -76,3 +76,5 @@ apps/nemesis-server/.env.*
 # Docker
 docker/mariadb/data
 docker/redis/data
+
+/generated/prisma

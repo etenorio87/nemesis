@@ -26,8 +26,6 @@ export class AnalysisService {
     // 🆕 Merge de configuración personalizada con defaults
     const settings = this.mergeWithDefaults(customSettings);
     const closes = klines.map((k) => k.close);
-    const highs = klines.map((k) => k.high);
-    const lows = klines.map((k) => k.low);
 
     // RSI - Ahora usa settings.rsi.period
     const rsiValues = RSI.calculate({

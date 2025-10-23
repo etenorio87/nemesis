@@ -1,29 +1,35 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {Injectable, Logger} from '@nestjs/common';
 import {
   BacktestConfig,
   BacktestResult,
   BacktestTrade,
-  Kline,
+  Kline, SignalEnum,
 } from '@nemesis/commons';
-import { BinanceService } from '../binance/binance.service';
-import { AnalysisService } from '../strategy/analysis.service';
+import {BinanceService} from '../binance/binance.service';
+import {AnalysisService} from '../strategy/analysis.service';
+import {SettingsService} from '../settings/settings.service';
 
 @Injectable()
 export class BacktestingService {
   private readonly logger = new Logger(BacktestingService.name);
 
   constructor(
-    private readonly binanceService: BinanceService,
-    private readonly analysisService: AnalysisService
-  ) {}
+    private readonly binance: BinanceService,
+    private readonly analysis: AnalysisService,
+    private readonly settings: SettingsService
+  ) {
+  }
 
   async runBacktest(config: BacktestConfig): Promise<BacktestResult> {
+    const indicatorSettings = await this.settings.getIndicatorSettings();
+    const tradingSettings = await this.settings.getTradingSettings();
+
     this.logger.log(
-      `Starting backtest for ${config.symbol} on ${config.interval} with SL: ${config.stopLossPercentage || 'N/A'}%, TP: ${config.takeProfitPercentage || 'N/A'}%`
+      `Starting backtest for ${config.symbol} on ${config.interval} with SL: ${tradingSettings.defaultStopLossPercentage}%, TP: ${tradingSettings.defaultTakeProfitPercentage}%`
     );
 
     // 1. Obtener datos históricos
-    const klines = await this.binanceService.getKlines(
+    const klines = await this.binance.getKlines(
       config.symbol,
       config.interval,
       config.limit || 500
@@ -33,8 +39,8 @@ export class BacktestingService {
       throw new Error('Not enough data for backtesting (minimum 50 candles)');
     }
 
-    // 2. Ejecutar backtest
-    const result = this.simulateTrading(klines, config);
+    // 2. Ejecutar backtest con configuración global
+    const result = this.simulateTrading(klines, config, indicatorSettings, tradingSettings);
 
     this.logger.log(
       `Backtest completed: P/L: ${result.profitLossPercentage.toFixed(2)}%, Win Rate: ${result.winRate.toFixed(2)}%, SL Triggered: ${result.stopLossTriggered}, TP Triggered: ${result.takeProfitTriggered}`
@@ -45,17 +51,24 @@ export class BacktestingService {
 
   private simulateTrading(
     klines: Kline[],
-    config: BacktestConfig
+    config: BacktestConfig,
+    indicatorSettings: any, // 🆕 NUEVO PARÁMETRO
+    tradingSettings: any,   // 🆕 NUEVO PARÁMETRO
   ): BacktestResult {
     let balance = config.initialBalance;
     let position: 'LONG' | null = null;
     let entryPrice = 0;
     let positionSize = 0;
-    let highestPriceInPosition = 0; // Para trailing stop
+    let highestPriceInPosition = 0;
 
     const trades: BacktestTrade[] = [];
     const equity: number[] = [balance];
-    const commissionRate = config.commissionRate || 0.001;
+
+    // 🆕 Usar config global si no se especifica en el request
+    const commissionRate = tradingSettings.defaultCommissionRate;
+    const stopLossPercentage = tradingSettings.defaultStopLossPercentage;
+    const takeProfitPercentage = tradingSettings.defaultTakeProfitPercentage;
+    const useTrailingStop = tradingSettings.defaultUseTrailingStop;
 
     let winningTrades = 0;
     let losingTrades = 0;
@@ -64,32 +77,27 @@ export class BacktestingService {
     let totalWinAmount = 0;
     let totalLossAmount = 0;
 
-    // Configuración de SL/TP
-    const stopLossPercentage = config.stopLossPercentage || null;
-    const takeProfitPercentage = config.takeProfitPercentage || null;
-    const useTrailingStop = config.useTrailingStop || false;
-
     for (let i = 50; i < klines.length; i++) {
       const historicalData = klines.slice(0, i + 1);
       const currentKline = klines[i];
 
-      // 🆕 Analizar técnicamente CON configuración personalizada
-      const analysis = this.analysisService.analyzeTechnicals(
+      // 🆕 Analizar técnicamente CON configuración global
+      const analysis = this.analysis.analyzeTechnicals(
         historicalData,
         config.symbol,
         config.interval,
-        config.indicatorSettings // 🆕 Pasar configuración de indicadores
+        indicatorSettings // 🆕 Usar config global
       );
 
-      const signal = this.analysisService.generateSignal(
+      const signal = this.analysis.generateSignal(
         analysis,
         currentKline.close,
-        config.indicatorSettings // 🆕 Pasar configuración para documentar
+        indicatorSettings // 🆕 Usar config global
       );
 
       if (position === null) {
-        // No hay posición abierta - buscar entrada
-        if (signal.signal === 'BUY' && signal.confidence >= 60) {
+        // 🆕 Usar umbral de confianza de la config global
+        if (signal.signal === SignalEnum.BUY && signal.confidence >= tradingSettings.minConfidenceToBuy) {
           position = 'LONG';
           entryPrice = currentKline.close;
           highestPriceInPosition = entryPrice;
@@ -100,7 +108,7 @@ export class BacktestingService {
           balance -= investAmount;
 
           trades.push({
-            type: 'BUY',
+            type: SignalEnum.BUY,
             price: entryPrice,
             timestamp: new Date(currentKline.closeTime),
             reason: signal.reason,
@@ -111,12 +119,8 @@ export class BacktestingService {
           );
         }
       } else if (position === 'LONG') {
-        // Tenemos posición LONG abierta - verificar salidas
         const currentPrice = currentKline.close;
-        const priceChangePercent =
-          ((currentPrice - entryPrice) / entryPrice) * 100;
 
-        // Actualizar highest price para trailing stop
         if (currentPrice > highestPriceInPosition) {
           highestPriceInPosition = currentPrice;
         }
@@ -129,11 +133,9 @@ export class BacktestingService {
           let stopLossPrice: number;
 
           if (useTrailingStop) {
-            // Trailing Stop: Se mueve con el precio
             stopLossPrice =
               highestPriceInPosition * (1 - stopLossPercentage / 100);
           } else {
-            // Stop Loss Fijo
             stopLossPrice = entryPrice * (1 - stopLossPercentage / 100);
           }
 
@@ -157,12 +159,12 @@ export class BacktestingService {
         }
 
         // 3. Verificar señal de SELL
-        if (!shouldClose && signal.signal === 'SELL' && signal.confidence >= 50) {
+        // 🆕 Usar umbral de confianza de la config global
+        if (!shouldClose && signal.signal === SignalEnum.SELL && signal.confidence >= tradingSettings.minConfidenceToSell) {
           shouldClose = true;
           closeReason = signal.reason;
         }
 
-        // Cerrar posición si alguna condición se cumplió
         if (shouldClose) {
           const sellValue = positionSize * currentPrice;
           const commission = sellValue * commissionRate;
@@ -181,7 +183,7 @@ export class BacktestingService {
           }
 
           trades.push({
-            type: 'SELL',
+            type: SignalEnum.SELL,
             price: currentPrice,
             timestamp: new Date(currentKline.closeTime),
             reason: closeReason,
@@ -200,7 +202,6 @@ export class BacktestingService {
         }
       }
 
-      // Calcular equity actual (balance + valor de posiciones abiertas)
       const currentEquity =
         position === 'LONG'
           ? balance + positionSize * currentKline.close
@@ -229,14 +230,13 @@ export class BacktestingService {
       }
 
       trades.push({
-        type: 'SELL',
+        type: SignalEnum.SELL,
         price: finalPrice,
         timestamp: new Date(klines[klines.length - 1].closeTime),
         reason: 'Cierre forzado al final del backtest',
         profitLoss,
         profitLossPercentage,
       });
-
       position = null;
     }
 
@@ -245,13 +245,11 @@ export class BacktestingService {
     const profitLossPercentage =
       (profitLoss / config.initialBalance) * 100;
 
-    // Calcular pares completos (BUY + SELL)
     const totalTradePairs = Math.floor(trades.length / 2);
     const winRate = totalTradePairs > 0
       ? (winningTrades / totalTradePairs) * 100
       : 0;
 
-    // Calcular métricas adicionales
     const averageWin = winningTrades > 0 ? totalWinAmount / winningTrades : 0;
     const averageLoss = losingTrades > 0 ? totalLossAmount / losingTrades : 0;
     const profitFactor =
@@ -284,7 +282,7 @@ export class BacktestingService {
       profitFactor,
       stopLossTriggered,
       takeProfitTriggered,
-      indicatorSettings: config.indicatorSettings, // 🆕 NUEVO: Documentar configuración usada
+      indicatorSettings, // 🆕 Documentar config usada
     };
   }
 
@@ -305,17 +303,4 @@ export class BacktestingService {
     return maxDrawdown;
   }
 
-  async runMultipleBacktests(
-    symbols: string[],
-    config: Omit<BacktestConfig, 'symbol'>
-  ): Promise<BacktestResult[]> {
-    return await Promise.all(
-      symbols.map((symbol) =>
-        this.runBacktest({
-          ...config,
-          symbol,
-        })
-      )
-    );
-  }
 }

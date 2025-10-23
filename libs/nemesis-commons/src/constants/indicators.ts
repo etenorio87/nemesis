@@ -1,72 +1,80 @@
-/**
- * 🎯 FASE 0: Constantes para Indicadores Configurables
- *
- * Este archivo contiene los valores por defecto y rangos de validación
- * para todos los indicadores técnicos configurables.
- */
-
-import { IndicatorSettings } from '../interfaces';
+import {BotSettings, IndicatorSettings, TrendDetectionSettings} from '../interfaces';
 
 /**
  * Valores por defecto para todos los indicadores
  * Estos valores se usan cuando el usuario no especifica configuración personalizada
  */
 export const DEFAULT_INDICATOR_SETTINGS: Required<IndicatorSettings> = {
-  rsi: {
-    period: 14
-  },
-  macd: {
-    fastPeriod: 12,
-    slowPeriod: 26,
-    signalPeriod: 9
-  },
-  sma: {
-    period: 20
-  },
-  ema: {
-    period: 20
-  }
+  rsi: { period: 14 },
+  macd: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+  sma: { period: 20 },
+  ema: { period: 20 }
 };
 
 /**
- * Rangos válidos para validación de parámetros
- * Usados por los DTOs para validar inputs del usuario
+ * Valores por defecto para detección de tendencias
  */
-export const INDICATOR_VALIDATION_RANGES = {
-  rsi: {
-    period: { min: 5, max: 50 }
+export const DEFAULT_TREND_DETECTION_SETTINGS: Required<TrendDetectionSettings> = {
+  adxPeriod: 14,
+  adxThreshold: 25,        // ADX > 25 indica tendencia fuerte
+  ema20Period: 20,
+  ema50Period: 50,
+  ema200Period: 200,
+  lookbackPeriod: 20,      // Analizar últimos 20 períodos para highs/lows
+};
+
+/**
+ * Configuración óptima por defecto del bot
+ */
+export const DEFAULT_BOT_CONFIGURATION: BotSettings = {
+  indicators: DEFAULT_INDICATOR_SETTINGS,
+  trendDetection: DEFAULT_TREND_DETECTION_SETTINGS,
+  trading: {
+    defaultStopLossPercentage: 2.0,
+    defaultTakeProfitPercentage: 5.0,
+    defaultUseTrailingStop: false,
+    defaultCommissionRate: 0.001,
+    enableTrendFilter: true,          // Por defecto SÍ filtrar mercados bajistas
+    minConfidenceToBuy: 60,
+    minConfidenceToSell: 50,
   },
-  macd: {
-    fastPeriod: { min: 5, max: 30 },
-    slowPeriod: { min: 15, max: 50 },
-    signalPeriod: { min: 5, max: 20 }
-  },
-  sma: {
-    period: { min: 5, max: 200 }
-  },
-  ema: {
-    period: { min: 5, max: 200 }
-  }
+  lastUpdated: new Date(),
+  version: '1.0.0',
+};
+
+/**
+ * Rangos de validación para configuración de tendencias
+ */
+export const TREND_DETECTION_VALIDATION_RANGES = {
+  adxPeriod: { min: 7, max: 30 },
+  adxThreshold: { min: 15, max: 40 },
+  ema20Period: { min: 10, max: 50 },
+  ema50Period: { min: 30, max: 100 },
+  ema200Period: { min: 100, max: 300 },
+  lookbackPeriod: { min: 10, max: 50 },
 } as const;
 
 /**
- * GUÍA DE CONFIGURACIÓN DE INDICADORES
+ * GUÍA DE INTERPRETACIÓN DE TENDENCIAS
  *
- * RSI (Relative Strength Index):
- * - period: 7-10 = Más sensible, más señales (riesgoso)
- * - period: 14 = Balanceado (recomendado) ⭐
- * - period: 21-30 = Más conservador, menos señales
+ * ADX (Average Directional Index):
+ * - ADX < 20: Tendencia débil o mercado lateral (SIDEWAYS)
+ * - ADX 20-25: Tendencia emergente
+ * - ADX > 25: Tendencia fuerte (BULLISH o BEARISH) ⭐
+ * - ADX > 40: Tendencia muy fuerte
  *
- * MACD (Moving Average Convergence Divergence):
- * - Fast/Slow/Signal: 8/21/5 = Agresivo, mercados rápidos
- * - Fast/Slow/Signal: 12/26/9 = Estándar (recomendado) ⭐
- * - Fast/Slow/Signal: 19/39/9 = Conservador, tendencias largas
+ * EMAs (Exponential Moving Averages):
+ * - Precio > EMA20 > EMA50 > EMA200: Fuerte tendencia BULLISH ⭐
+ * - Precio < EMA20 < EMA50 < EMA200: Fuerte tendencia BEARISH
+ * - EMAs entrelazadas: Mercado SIDEWAYS
  *
- * SMA/EMA (Moving Averages):
- * - period: 20 = Corto plazo, day trading ⭐
- * - period: 50 = Medio plazo, swing trading
- * - period: 200 = Largo plazo, tendencias principales
+ * Price Action:
+ * - Higher Highs + Higher Lows: BULLISH
+ * - Lower Highs + Lower Lows: BEARISH
+ * - Mezcla de ambos: SIDEWAYS
  *
- * NOTA: Períodos más cortos = Más señales pero más falsas
- *       Períodos más largos = Menos señales pero más confiables
+ * Estrategias Recomendadas:
+ * - BULLISH: TREND_FOLLOWING (seguir la tendencia alcista)
+ * - BEARISH: HOLD (no operar, evitar pérdidas)
+ * - SIDEWAYS: MEAN_REVERSION (comprar bajo, vender alto)
  */

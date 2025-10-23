@@ -17,15 +17,15 @@ export interface BacktestResult {
   endDate: Date;
   initialBalance: number;
   finalBalance: number;
-  totalOperations: number; // Total de BUY + SELL
-  completedTrades: number; // Pares completos (BUY+SELL)
+  totalOperations: number;
+  completedTrades: number;
   winningTrades: number;
   losingTrades: number;
   profitLoss: number;
   profitLossPercentage: number;
   winRate: number;
   trades: BacktestTrade[];
-  equity: number[]; // Valor de la cuenta en cada momento (balance + posiciones)
+  equity: number[];
   maxDrawdown: number;
   sharpeRatio?: number;
   averageWin?: number;
@@ -34,6 +34,14 @@ export interface BacktestResult {
   stopLossTriggered?: number;
   takeProfitTriggered?: number;
   indicatorSettings?: IndicatorSettings;
+  trendAnalysis?: {                       // 🆕 NUEVO: Análisis de tendencias durante el backtest
+    bullishPeriods: number;               // Períodos en tendencia alcista
+    bearishPeriods: number;               // Períodos en tendencia bajista
+    sidewaysPeriods: number;              // Períodos en mercado lateral
+    tradesInBullish: number;              // Trades ejecutados en BULLISH
+    tradesInBearish: number;              // Trades ejecutados en BEARISH (debería ser 0)
+    tradesInSideways: number;             // Trades ejecutados en SIDEWAYS
+  };
 }
 
 
@@ -44,9 +52,4 @@ export interface BacktestConfig {
   endDate?: Date;
   initialBalance: number;
   limit?: number;
-  commissionRate?: number;
-  stopLossPercentage?: number; // % de pérdida para cerrar posición
-  takeProfitPercentage?: number; // % de ganancia para cerrar posición
-  useTrailingStop?: boolean; // Stop-loss dinámico
-  indicatorSettings?: IndicatorSettings;
 }
