@@ -3,7 +3,8 @@ import {
   IndicatorSettings,
   TrendDetectionSettings,
   TradingSettings,
-  DEFAULT_BOT_CONFIGURATION, BotSettings,
+  BotSettings,
+  DEFAULT_BOT_CONFIGURATION,
 } from '@nemesis/commons';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { RedisService } from '../../core/redis/redis.service';
@@ -89,13 +90,15 @@ export class SettingsService implements OnModuleInit {
         ema200Period: defaults.trendDetection.ema200Period!,
         lookbackPeriod: defaults.trendDetection.lookbackPeriod!,
         // Trading
-        defaultStopLoss: defaults.trading.defaultStopLossPercentage!,
-        defaultTakeProfit: defaults.trading.defaultTakeProfitPercentage!,
-        useTrailingStop: defaults.trading.defaultUseTrailingStop!,
-        commissionRate: defaults.trading.defaultCommissionRate!,
         enableTrendFilter: defaults.trading.enableTrendFilter!,
-        minConfidenceBuy: defaults.trading.minConfidenceToBuy!,
-        minConfidenceSell: defaults.trading.minConfidenceToSell!,
+        commissionRate: defaults.trading.commissionRate!,
+        stopLossPercent: defaults.trading.stopLossPercent!,
+        takeProfitPercent: defaults.trading.takeProfitPercent!,
+        maxPositionSize: defaults.trading.maxPositionSize!,
+        trailingStopPercent: defaults.trading.trailingStopPercent!,
+        breakevenThreshold: defaults.trading.breakevenThreshold!,
+        minConfidenceToBuy: defaults.trading.minConfidenceToBuy!,
+        minConfidenceToSell: defaults.trading.minConfidenceToSell!,
       },
     });
   }
@@ -124,13 +127,15 @@ export class SettingsService implements OnModuleInit {
         lookbackPeriod: dbConfig.lookbackPeriod,
       },
       trading: {
-        defaultStopLossPercentage: dbConfig.defaultStopLoss,
-        defaultTakeProfitPercentage: dbConfig.defaultTakeProfit,
-        defaultUseTrailingStop: dbConfig.useTrailingStop,
-        defaultCommissionRate: dbConfig.commissionRate,
         enableTrendFilter: dbConfig.enableTrendFilter,
-        minConfidenceToBuy: dbConfig.minConfidenceBuy,
-        minConfidenceToSell: dbConfig.minConfidenceSell,
+        commissionRate: dbConfig.commissionRate,
+        stopLossPercent: dbConfig.stopLossPercent,
+        takeProfitPercent: dbConfig.takeProfitPercent,
+        maxPositionSize: dbConfig.maxPositionSize,
+        trailingStopPercent: dbConfig.trailingStopPercent,
+        breakevenThreshold: dbConfig.breakevenThreshold,
+        minConfidenceToBuy: dbConfig.minConfidenceToBuy,
+        minConfidenceToSell: dbConfig.minConfidenceToSell,
       },
       lastUpdated: dbConfig.updatedAt,
       version: dbConfig.version,
@@ -151,7 +156,7 @@ export class SettingsService implements OnModuleInit {
   /**
    * Obtiene la configuración actual desde Redis
    */
-  async getConfiguration(): Promise<BotSettings> {
+  async getAll(): Promise<BotSettings> {
     const cached = await this.redis.get(this.CACHE_KEY);
 
     if (!cached) {
@@ -165,17 +170,17 @@ export class SettingsService implements OnModuleInit {
   }
 
   async getIndicatorSettings(): Promise<IndicatorSettings> {
-    const config = await this.getConfiguration();
+    const config = await this.getAll();
     return config.indicators;
   }
 
   async getTrendDetectionSettings(): Promise<TrendDetectionSettings> {
-    const config = await this.getConfiguration();
+    const config = await this.getAll();
     return config.trendDetection;
   }
 
   async getTradingSettings(): Promise<TradingSettings> {
-    const config = await this.getConfiguration();
+    const config = await this.getAll();
     return config.trading;
   }
 
@@ -227,13 +232,15 @@ export class SettingsService implements OnModuleInit {
   async updateTradingSettings(settings: Partial<TradingSettings>): Promise<BotSettings> {
     await this.prisma.botConfig.updateMany({
       data: {
-        defaultStopLoss: settings.defaultStopLossPercentage,
-        defaultTakeProfit: settings.defaultTakeProfitPercentage,
-        useTrailingStop: settings.defaultUseTrailingStop,
-        commissionRate: settings.defaultCommissionRate,
         enableTrendFilter: settings.enableTrendFilter,
-        minConfidenceBuy: settings.minConfidenceToBuy,
-        minConfidenceSell: settings.minConfidenceToSell,
+        commissionRate: settings.commissionRate,
+        stopLossPercent: settings.stopLossPercent,
+        takeProfitPercent: settings.takeProfitPercent,
+        maxPositionSize: settings.maxPositionSize,
+        trailingStopPercent: settings.trailingStopPercent,
+        breakevenThreshold: settings.breakevenThreshold,
+        minConfidenceToBuy: settings.minConfidenceToBuy,
+        minConfidenceToSell: settings.minConfidenceToSell,
         updatedAt: new Date(),
       },
     });
@@ -252,7 +259,7 @@ export class SettingsService implements OnModuleInit {
     await this.initializeConfiguration();
 
     this.logger.warn('⚠️  Configuración reseteada a valores por defecto');
-    return await this.getConfiguration();
+    return await this.getAll();
   }
 
   /**

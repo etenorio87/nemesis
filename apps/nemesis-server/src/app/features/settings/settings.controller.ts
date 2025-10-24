@@ -13,8 +13,8 @@ export class SettingsController {
    * Obtiene la configuración completa actual
    */
   @Get()
-  async getConfiguration() {
-    return await this.settings.getConfiguration();
+  async getAll() {
+    return await this.settings.getAll();
   }
 
   /**

@@ -41,6 +41,10 @@ export interface MarketTrend {
   recommendedStrategy: TradingStrategyType; // Estrategia recomendada
 }
 
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
 export interface TrendDetectionSettings {
   adxPeriod?: number;        // Período para ADX (default: 14)
   adxThreshold?: number;     // Umbral de ADX para considerar tendencia fuerte (default: 25)
@@ -50,21 +54,19 @@ export interface TrendDetectionSettings {
   lookbackPeriod?: number;   // Períodos para analizar highs/lows (default: 20)
 }
 
-// ==========================================
-// 🆕 CONFIGURACIÓN GLOBAL DEL BOT
-// ==========================================
-
 /**
  * Configuración de trading general
  */
 export interface TradingSettings {
-  defaultStopLossPercentage?: number;
-  defaultTakeProfitPercentage?: number;
-  defaultUseTrailingStop?: boolean;
-  defaultCommissionRate?: number;
-  enableTrendFilter?: boolean;        // Si true, no opera en BEARISH
-  minConfidenceToBuy?: number;        // Default: 60
-  minConfidenceToSell?: number;       // Default: 50
+  enableTrendFilter?: boolean;    // Si true, no opera en BEARISH
+  commissionRate?: number;        // Tasa de comisión por operación (ej: 0.001)
+  stopLossPercent?: number;       // % de stop loss (ej: 2.0)
+  takeProfitPercent?: number;     // % de take profit (ej: 5.0)
+  trailingStopPercent?: number;   // % de trailing (usa stopLoss si no se especifica)
+  breakevenThreshold?: number;    // % para mover SL a breakeven (ej: 1.5)
+  maxPositionSize?: number;       // Máximo % del balance por posición (ej: 0.95)
+  minConfidenceToBuy?: number;    // Confianza mínima para comprar (ej: 60)
+  minConfidenceToSell?: number;   // Confianza mínima para vender (ej: 50)
 }
 
 /**

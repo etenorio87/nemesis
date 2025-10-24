@@ -4,7 +4,7 @@ import {
   MarketTrend,
   MarketTrendType,
   TrendDetectionSettings,
-  TradingStrategyType, MarketTrendEnum, TradingStrategyEnum,
+  TradingStrategyType,
 } from '@nemesis/commons';
 import {StrategyUtil} from './strategy.util';
 
@@ -35,7 +35,7 @@ export class TrendAnalysisService {
         `No hay suficientes datos de Klines (${klines.length}) para calcular indicadores largos (requerido: ${minDataRequired}).`,
       );
       // Retornamos SIDEWAYS si no hay datos suficientes para un análisis robusto.
-      return this.createMarketTrendObject(MarketTrendEnum.SIDEWAYS, 0);
+      return this.createMarketTrendObject('SIDEWAYS', 0);
     }
 
     // Extraemos los precios de cierre
@@ -58,7 +58,7 @@ export class TrendAnalysisService {
     const lastAdx = adxResults[adxResults.length - 1];
     if (!lastAdx) {
       // Si el cálculo de ADX falló o no devolvió nada
-      return this.createMarketTrendObject(MarketTrendEnum.SIDEWAYS, 0);
+      return this.createMarketTrendObject('SIDEWAYS', 0);
     }
 
     const adxValue = lastAdx.adx;
@@ -66,7 +66,7 @@ export class TrendAnalysisService {
     const mdiValue = lastAdx.mdi; // Negative Directional Indicator
 
     // --- Lógica de Decisión Combinada ---
-    let currentTrend = MarketTrendEnum.SIDEWAYS;
+    let currentTrend: MarketTrendType;
 
     // Filtro 1: ¿Hay fuerza en el mercado? (ADX > Umbral)
     const isTrending = adxValue > settings.adxThreshold;
@@ -79,20 +79,20 @@ export class TrendAnalysisService {
 
     if (!isTrending) {
       // Si ADX es bajo, no hay tendencia. Es lateral.
-      currentTrend = MarketTrendEnum.SIDEWAYS;
+      currentTrend = 'SIDEWAYS';
     } else {
       // Si hay tendencia (ADX alto)...
       if (isBullishDirection && isAboveLongTerm) {
         // Tendencia alcista confirmada (ADX fuerte, PDI > MDI, Precio > EMA 200)
-        currentTrend = MarketTrendEnum.BULLISH;
+        currentTrend = 'BULLISH';
       } else if (!isBullishDirection && !isAboveLongTerm) {
         // Tendencia bajista confirmada (ADX fuerte, MDI > PDI, Precio < EMA 200)
-        currentTrend = MarketTrendEnum.BEARISH;
+        currentTrend = 'BEARISH';
       } else {
         // Señales mixtas (p.ej. ADX fuerte, PDI > MDI, pero Precio < EMA 200)
         // Esto es un 'pullback' alcista en tendencia bajista, o viceversa.
         // Es un estado de "incertidumbre" o "transición". Lo tratamos como HOLD/SIDEWAYS.
-        currentTrend = MarketTrendEnum.SIDEWAYS;
+        currentTrend = 'SIDEWAYS';
       }
     }
     // --- Fin Lógica de Decisión ---
@@ -112,15 +112,15 @@ export class TrendAnalysisService {
     let strategy: TradingStrategyType;
 
     switch (trend) {
-      case MarketTrendEnum.BULLISH:
-        strategy = TradingStrategyEnum.TREND_FOLLOWING;
+      case 'BULLISH':
+        strategy = 'TREND_FOLLOWING';
         break;
-      case MarketTrendEnum.SIDEWAYS:
-        strategy = TradingStrategyEnum.MEAN_REVERSION;
+      case 'SIDEWAYS':
+        strategy = 'MEAN_REVERSION';
         break;
-      case MarketTrendEnum.BEARISH:
+      case 'BEARISH':
       default:
-        strategy = TradingStrategyEnum.HOLD;
+        strategy = 'HOLD';
         break;
     }
 
@@ -134,8 +134,4 @@ export class TrendAnalysisService {
     };
   }
 
-  // Métodos privados para cálculos de indicadores (se implementarán a continuación)
-  // private calculateEMAs(...) {}
-  // private calculateADX(...) {}
-  // private analyzePriceAction(...) {}
 }

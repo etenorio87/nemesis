@@ -5,17 +5,13 @@ import {
 } from '@nestjs/common';
 import {
   BacktestResult,
-  Kline,
-  MarketTrend,
-  BacktestTrade,  // 1. Usar BacktestTrade
-  TradeSignal,    // 2. Usar TradeSignal
-  TradingSettings,
-  BacktestConfig, SignalEnum, MarketTrendEnum, // Importar
+  BacktestTrade,
+  BacktestConfig, ExecutedTrade, BotContext,
 } from '@nemesis/commons';
 import { BinanceService } from '../binance/binance.service';
-import { AnalysisService } from '../strategy/analysis.service';
 import { SettingsService } from '../settings/settings.service';
-import { TrendAnalysisService } from '../strategy/trend-analysis.service';
+import {TradingEngineService} from '../trading-engine/services/trading-engine.service';
+import {BacktestAdapter} from '../trading-engine/adapters/backtest.adapter';
 
 @Injectable()
 export class BacktestingService {
@@ -24,10 +20,13 @@ export class BacktestingService {
   constructor(
     private readonly binanceService: BinanceService,
     private readonly settingsService: SettingsService,
-    private readonly analysisService: AnalysisService,
-    private readonly trendAnalysisService: TrendAnalysisService,
+    private readonly engine: TradingEngineService,
   ) {}
 
+  /**
+   * Ejecuta un backtest completo
+   * SIMPLIFICADO: Ahora solo itera y delega al TradingEngine
+   */
   public async runBacktest(config: BacktestConfig): Promise<BacktestResult> {
     // --- 1. Obtención de Datos y Configuración ---
     this.logger.log(`Iniciando backtest para ${config.symbol} (${config.interval})...`);
@@ -40,213 +39,237 @@ export class BacktestingService {
       config.endDate,
     );
 
-    const [indicatorSettings, trendSettings, tradingSettings] = await Promise.all([
-      this.settingsService.getIndicatorSettings(),
-      this.settingsService.getTrendDetectionSettings(),
-      this.settingsService.getTradingSettings(),
-    ]);
+    if (klines.length === 0) {
+      throw new BadRequestException('No se obtuvieron datos de mercado');
+    }
 
-    // --- 2. Inicialización de Estado ---
-    let balance = config.initialBalance;
-    let position = 0; // Cantidad de activo (ej. 1 BTC)
-    let entryPrice = 0; // Precio de la última compra
-    const trades: BacktestTrade[] = []; // 3. Usar BacktestTrade[]
-    const equityCurve = [];
+    // Obtener configuración global
+    const settings = await this.settingsService.getAll();
+    // Validar configuración
+    const validation = this.engine.validateConfiguration(settings);
+    if (!validation.valid) {
+      throw new BadRequestException(
+        `Configuración inválida: ${validation.errors.join(', ')}`,
+      );
+    }
 
-    // 2b. 🆕 INICIALIZAR ESTADÍSTICAS DE TENDENCIA
+    // =====================================================================
+    // 2. CREAR CONTEXTO INICIAL
+    // =====================================================================
+    const initialContext: BotContext = {
+      symbol: config.symbol,
+      timestamp: new Date(klines[0].closeTime),
+      currentPrice: klines[0].close,
+      position: null,
+      balance: config.initialBalance,
+      equity: config.initialBalance,
+      settings: settings,
+    };
+
+    // =====================================================================
+    // 3. CREAR ADAPTADOR DE BACKTESTING
+    // =====================================================================
+    const adapter = new BacktestAdapter(initialContext);
+
+    // =====================================================================
+    // 4. CALCULAR ÍNDICE DE INICIO (warm-up period)
+    // =====================================================================
+    const startIndex = Math.max(
+      settings.indicators.rsi.period,
+      settings.trendDetection.ema200Period,
+      settings.trendDetection.adxPeriod * 2,
+    );
+
+    if (klines.length <= startIndex) {
+      throw new BadRequestException(
+        `Datos insuficientes. Se requieren al menos ${startIndex} velas, pero solo hay ${klines.length}`,
+      );
+    }
+
+    this.logger.log(
+      `📊 Datos cargados: ${klines.length} velas | Inicio en índice: ${startIndex}`,
+    );
+
+    // =====================================================================
+    // 5. ITERACIÓN SOBRE VELAS (SIMPLIFICADO)
+    // =====================================================================
+    const trades: ExecutedTrade[] = [];
+    const equityCurve: Array<{ timestamp: number; equity: number }> = [];
+
+    // Contadores para estadísticas
     const stats = {
       bullishPeriods: 0,
       bearishPeriods: 0,
       sidewaysPeriods: 0,
       tradesInBullish: 0,
-      tradesInBearish: 0, // Debería ser 0
+      tradesInBearish: 0,
       tradesInSideways: 0,
+      stopLossTriggered: 0,
+      takeProfitTriggered: 0,
+      trailingStopTriggered: 0,
     };
 
-    // --- 3. Calcular StartIndex (Corregido) ---
-    const startIndex = Math.max(
-      indicatorSettings.rsi.period, // 4. Corregido (sin Stochastic)
-      trendSettings.ema200Period,
-      trendSettings.adxPeriod * 2,
-    );
-
-    if (klines.length <= startIndex) {
-      throw new BadRequestException(
-        `Datos de Klines insuficientes (${klines.length}) para el período de calentamiento requerido (${startIndex}).`,
-      );
-    }
-
-    this.logger.log(`Klines cargados: ${klines.length}. Iniciando simulación en índice: ${startIndex}`);
-
-    // --- 4. Bucle Principal de Simulación ---
     for (let i = startIndex; i < klines.length; i++) {
       const currentKlines = klines.slice(0, i + 1);
-      const currentKline = klines[i];
-      const tradesBefore = trades.length; // 3. Contar trades antes
 
-      // 4a. DETECTAR RÉGIMEN DE MERCADO
-      const marketTrend: MarketTrend = this.trendAnalysisService.detectTrend(
-        currentKlines,
-        trendSettings,
-      );
+      // 🎯 TODA LA LÓGICA DELEGADA AL TRADING ENGINE
+      const result = await this.engine.processMarketData(config.symbol, currentKlines, adapter);
 
-      // 4b. Generar Señal
-      const signal = this.analysisService.generateSignals( // 6. Llamar al nuevo método
-        config.symbol,
-        currentKlines,
-        indicatorSettings,
-        marketTrend.recommendedStrategy, // Pasamos la estrategia
-      );
+      // Registrar trades ejecutados
+      if (result.executedAction === 'BUY') {
+        trades.push({
+          symbol: config.symbol,
+          type: 'BUY',
+          price: result.executedPrice!,
+          quantity: result.executedQuantity!,
+          timestamp: result.timestamp,
+          reason: result.error || 'Señal de compra',
+          fees: result.fees,
+        });
+      } else if (result.executedAction === 'SELL') {
+        // Calcular P/L del trade
+        const buyTrade = this.findMatchingBuyTrade(trades);
+        const profitLoss = buyTrade
+          ? (result.executedPrice! - buyTrade.price) * result.executedQuantity!
+          : 0;
+        const profitLossPercentage = buyTrade
+          ? ((result.executedPrice! - buyTrade.price) / buyTrade.price) * 100
+          : 0;
 
-      // 4c. SIMULAR TRADES
-      const simulationResult = this.simulateTrades(
-        signal, // 7. Pasar la señal singular
-        currentKline,
-        position,
-        balance,
-        entryPrice, // Pasamos el estado actual
-        tradingSettings,
-        trades,
-      );
+        // Determinar razón de salida
+        let exitReason = 'Señal de venta';
+        if (result.error?.includes('STOP LOSS')) {
+          exitReason = 'Stop Loss';
+          stats.stopLossTriggered++;
+        } else if (result.error?.includes('TAKE PROFIT')) {
+          exitReason = 'Take Profit';
+          stats.takeProfitTriggered++;
+        } else if (result.error?.includes('TRAILING')) {
+          exitReason = 'Trailing Stop';
+          stats.trailingStopTriggered++;
+        }
 
-      const tradeExecuted = trades.length > tradesBefore; // 4. Comprobar si se ejecutó
-      position = simulationResult.position;
-      balance = simulationResult.balance;
-      entryPrice = simulationResult.entryPrice;
-
-      // 4d. 🆕 ACTUALIZAR ESTADÍSTICAS DE TENDENCIA
-      switch (marketTrend.type) {
-        case MarketTrendEnum.BULLISH:
-          stats.bullishPeriods++;
-          if (tradeExecuted) stats.tradesInBullish++;
-          break;
-        case MarketTrendEnum.BEARISH:
-          stats.bearishPeriods++;
-          if (tradeExecuted) stats.tradesInBearish++; // Validar que esto sea 0
-          break;
-        case MarketTrendEnum.SIDEWAYS:
-          stats.sidewaysPeriods++;
-          if (tradeExecuted) stats.tradesInSideways++;
-          break;
+        trades.push({
+          symbol: config.symbol,
+          type: 'SELL',
+          price: result.executedPrice!,
+          quantity: result.executedQuantity!,
+          timestamp: result.timestamp,
+          reason: exitReason,
+          exitReason: exitReason,
+          profitLoss: profitLoss,
+          profitLossPercentage: profitLossPercentage,
+          fees: result.fees,
+        });
       }
 
-      // 4e. Actualizar Curva de Equity (sin cambios)
-      const currentPnl =
-        position > 0 ? (currentKline.close - entryPrice) * position : 0;
+      // Registrar equity curve
+      const context = await adapter.getContext(config.symbol);
       equityCurve.push({
-        timestamp: currentKline.closeTime,
-        equity: balance + currentPnl,
+        timestamp: klines[i].closeTime,
+        equity: context.equity,
       });
-    } // --- Fin del Bucle ---
 
-    this.logger.log(`Backtest completado. Trades realizados: ${trades.length}`);
-
-    // --- 5. 🆕 CÁLCULO DE MÉTRICAS Y RETORNO (IMPLEMENTADO) ---
-    // 5a. Liquidar posición abierta si existe (para P/L final)
-    let finalBalance = balance;
-    if (position > 0) {
-      const lastPrice = klines[klines.length - 1].close;
-      finalBalance += position * lastPrice;
+      // Actualizar estadísticas de tendencia (opcional, si quieres trackear)
+      // Aquí podrías agregar lógica para contar períodos por tendencia
     }
 
-    // 5b. Métricas de Trades
-    const completedTrades = trades.filter((t) => t.type === 'SELL');
-    const winningTrades = completedTrades.filter(
-      (t) => t.profitLoss > 0,
-    ).length;
-    const losingTrades = completedTrades.length - winningTrades;
-    const winRate =
-      completedTrades.length > 0
-        ? (winningTrades / completedTrades.length) * 100
-        : 0;
+    this.logger.log(`✅ Backtest completado: ${trades.length} operaciones`);
 
-    // 5c. Métricas de P/L
-    const totalPnl = finalBalance - config.initialBalance;
-    const totalPnlPercentage =
-      (totalPnl / config.initialBalance) * 100;
-
-    // 5d. Métricas de Equity y Drawdown
-    const equityValues = equityCurve.map((e) => e.equity);
-    const maxDrawdown = this.calculateMaxDrawdown(equityValues);
-
-    // 5e. Construir el objeto de retorno COMPLETO
-    return {
-      symbol: config.symbol,
-      interval: config.interval,
-      startDate: new Date(config.startDate),
-      endDate: new Date(config.endDate),
-      initialBalance: config.initialBalance,
-      finalBalance: finalBalance,
-      totalOperations: trades.length,
-      completedTrades: completedTrades.length,
-      winningTrades: winningTrades,
-      losingTrades: losingTrades,
-      profitLoss: totalPnl,
-      profitLossPercentage: totalPnlPercentage,
-      winRate: winRate,
-      trades: trades,
-      equity: equityValues,
-      maxDrawdown: maxDrawdown,
-      indicatorSettings: indicatorSettings, // Devolver la config usada
-      trendAnalysis: stats, // El objeto que ya funciona
-    };
+    // =====================================================================
+    // 6. CALCULAR MÉTRICAS FINALES
+    // =====================================================================
+    return this.calculateMetrics(config, trades, equityCurve, stats, settings);
   }
 
   /**
-   * Lógica de simulación de trades (Ajustada)
-   * Ahora usa BacktestTrade y TradeSignal
+   * Calcula todas las métricas del backtest
    */
-  private simulateTrades(
-    signal: TradeSignal, // Recibe una sola señal
-    kline: Kline,
-    position: number,
-    balance: number,
-    entryPrice: number,
-    settings: TradingSettings,
-    trades: BacktestTrade[], // Usa el tipo correcto
-  ): { position: number; balance: number; entryPrice: number } {
-    const currentPrice = kline.close;
-    const orderAmountPercentage = 1;
+  private calculateMetrics(
+    config: BacktestConfig,
+    trades: ExecutedTrade[],
+    equityCurve: Array<{ timestamp: number; equity: number }>,
+    stats: any,
+    settings: any,
+  ): BacktestResult {
 
-    // Lógica de Compra
-    if (signal.signal === SignalEnum.BUY && position === 0) {
-      const positionSize = (balance * orderAmountPercentage) / currentPrice;
-      const cost = positionSize * currentPrice;
+    // Balance final
+    const finalEquity = equityCurve[equityCurve.length - 1]?.equity || config.initialBalance;
 
-      position = positionSize;
-      balance -= cost;
-      entryPrice = currentPrice;
+    // Métricas de trades
+    const buyTrades = trades.filter(t => t.type === 'BUY');
+    const sellTrades = trades.filter(t => t.type === 'SELL');
+    const completedTrades = sellTrades.length;
 
-      trades.push({
-        type: SignalEnum.BUY,
-        price: currentPrice, // 8. Usar 'price'
-        timestamp: new Date(kline.closeTime),
-        reason: signal.reason,
-      });
-    }
-    // Lógica de Venta
-    else if (signal.signal === SignalEnum.SELL && position > 0) {
-      const revenue = position * currentPrice;
-      const profitLoss = (currentPrice - entryPrice) * position;
-      const profitLossPercentage = ((currentPrice - entryPrice) / entryPrice) * 100;
+    const winningTrades = sellTrades.filter(t => t.profitLoss! > 0).length;
+    const losingTrades = completedTrades - winningTrades;
+    const winRate = completedTrades > 0 ? (winningTrades / completedTrades) * 100 : 0;
 
-      balance += revenue;
-      position = 0;
-      entryPrice = 0;
+    // P/L
+    const totalPnL = finalEquity - config.initialBalance;
+    const totalPnLPercentage = (totalPnL / config.initialBalance) * 100;
 
-      trades.push({
-        type: SignalEnum.SELL,
-        price: currentPrice, // 9. Usar 'price'
-        timestamp: new Date(kline.closeTime),
-        reason: signal.reason,
-        profitLoss: profitLoss,
-        profitLossPercentage: profitLossPercentage,
-      });
-    }
+    // Métricas avanzadas
+    const wins = sellTrades.filter(t => t.profitLoss! > 0).map(t => t.profitLoss!);
+    const losses = sellTrades.filter(t => t.profitLoss! <= 0).map(t => Math.abs(t.profitLoss!));
 
-    return { position, balance, entryPrice };
+    const averageWin = wins.length > 0
+      ? wins.reduce((a, b) => a + b, 0) / wins.length
+      : 0;
+    const averageLoss = losses.length > 0
+      ? losses.reduce((a, b) => a + b, 0) / losses.length
+      : 0;
+
+    const totalWins = wins.reduce((a, b) => a + b, 0);
+    const totalLosses = losses.reduce((a, b) => a + b, 0);
+    const profitFactor = totalLosses > 0 ? totalWins / totalLosses : 0;
+
+    // Max Drawdown
+    const maxDrawdown = this.calculateMaxDrawdown(equityCurve.map(e => e.equity));
+
+    // Convertir trades para el resultado
+    const backTestTrades: BacktestTrade[] = trades.map(t => ({
+      type: t.type === 'BUY' ? 'BUY' : 'SELL',
+      price: t.price,
+      timestamp: t.timestamp,
+      reason: t.reason,
+      profitLoss: t.profitLoss,
+      profitLossPercentage: t.profitLossPercentage,
+    }));
+
+    return {
+      symbol: config.symbol,
+      interval: config.interval,
+      startDate: new Date(equityCurve[0]?.timestamp || Date.now()),
+      endDate: new Date(equityCurve[equityCurve.length - 1]?.timestamp || Date.now()),
+      initialBalance: config.initialBalance,
+      finalBalance: finalEquity,
+      totalOperations: trades.length,
+      completedTrades: completedTrades,
+      winningTrades: winningTrades,
+      losingTrades: losingTrades,
+      profitLoss: totalPnL,
+      profitLossPercentage: totalPnLPercentage,
+      winRate: winRate,
+      trades: backTestTrades,
+      equity: equityCurve.map(e => e.equity),
+      maxDrawdown: maxDrawdown,
+      averageWin: averageWin,
+      averageLoss: averageLoss,
+      profitFactor: profitFactor,
+      stopLossTriggered: stats.stopLossTriggered,
+      takeProfitTriggered: stats.takeProfitTriggered,
+      indicatorSettings: settings.indicatorSettings,
+      trendAnalysis: {
+        bullishPeriods: stats.bullishPeriods,
+        bearishPeriods: stats.bearishPeriods,
+        sidewaysPeriods: stats.sidewaysPeriods,
+        tradesInBullish: stats.tradesInBullish,
+        tradesInBearish: stats.tradesInBearish,
+        tradesInSideways: stats.tradesInSideways,
+      },
+    };
   }
-
 
   /**
    * 🆕 HELPER: Calcula el Max Drawdown
@@ -270,5 +293,26 @@ export class BacktestingService {
       }
     }
     return maxDrawdown;
+  }
+
+
+  /**
+   * Encuentra el trade de compra correspondiente a una venta
+   */
+  private findMatchingBuyTrade(trades: ExecutedTrade[]): ExecutedTrade | undefined {
+    // Buscar el último BUY sin SELL correspondiente
+    for (let i = trades.length - 1; i >= 0; i--) {
+      if (trades[i].type === 'BUY') {
+        // Verificar si ya tiene un SELL asociado
+        const hasSell = trades
+          .slice(i + 1)
+          .some(t => t.type === 'SELL');
+
+        if (!hasSell) {
+          return trades[i];
+        }
+      }
+    }
+    return undefined;
   }
 }

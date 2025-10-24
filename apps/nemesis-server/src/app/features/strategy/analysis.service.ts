@@ -1,16 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RSI, MACD, SMA, EMA } from 'technicalindicators';
+import { RSI, MACD } from 'technicalindicators';
 import {
   Kline,
   TechnicalAnalysis,
   TradeSignal,
   IndicatorSettings,
-  DEFAULT_INDICATOR_SETTINGS, TradingStrategyType, TradingStrategyEnum, SignalType, SignalEnum,
+  DEFAULT_INDICATOR_SETTINGS, TradingStrategyType, SignalType,
 } from '@nemesis/commons';
 
 @Injectable()
 export class AnalysisService {
-  private readonly logger = new Logger(AnalysisService.name);
 
   /**
    * MÉTODO ROUTER PRINCIPAL
@@ -43,21 +42,21 @@ export class AnalysisService {
 
     // Enrutamos la lógica basada en la estrategia
     switch (strategy) {
-      case TradingStrategyEnum.MEAN_REVERSION:
+      case 'MEAN_REVERSION':
         return this.generateMeanReversionSignal(
           symbol,
           klines,
           mergedSettings,
           currentKline,
         );
-      case TradingStrategyEnum.TREND_FOLLOWING:
+      case 'TREND_FOLLOWING':
         return this.generateTrendFollowingSignal(
           symbol,
           klines,
           mergedSettings,
           currentKline,
         );
-      case TradingStrategyEnum.HOLD:
+      case 'HOLD':
       default:
         return this.createHoldSignal(
           'Estrategia HOLD activa (detectado mercado bajista o incierto)',
@@ -105,24 +104,24 @@ export class AnalysisService {
     if (buyScore > sellScore) {
       return this.createSignal(
         symbol,
-        SignalEnum.BUY,
+        'BUY',
         buyScore,
         `Señal de COMPRA (Mean Reversion): ${signals.join(', ')}`,
         currentKline,
         settings,
         analysis,
-        TradingStrategyEnum.MEAN_REVERSION, // 1. Especificar estrategia
+        'MEAN_REVERSION', // 1. Especificar estrategia
       );
     } else if (sellScore > buyScore) {
       return this.createSignal(
         symbol,
-        SignalEnum.SELL,
+        'SELL',
         sellScore,
         `Señal de VENTA (Mean Reversion): ${signals.join(', ')}`,
         currentKline,
         settings,
         analysis,
-        TradingStrategyEnum.MEAN_REVERSION, // 2. Especificar estrategia
+        'MEAN_REVERSION', // 2. Especificar estrategia
       );
     }
 
@@ -199,24 +198,24 @@ export class AnalysisService {
     if (buyScore > 0) {
       return this.createSignal(
         symbol,
-        SignalEnum.BUY,
+        'BUY',
         buyScore,
         `Señal de COMPRA (Trend Following): ${signals.join(', ')}`,
         currentKline,
         settings,
         analysis,
-        TradingStrategyEnum.TREND_FOLLOWING, // 3. Especificar estrategia
+        'TREND_FOLLOWING', // 3. Especificar estrategia
       );
     } else if (sellScore > 0) {
       return this.createSignal(
         symbol,
-        SignalEnum.SELL,
+        'SELL',
         sellScore,
         `Señal de VENTA (Trend Following): ${signals.join(', ')}`,
         currentKline,
         settings,
         analysis,
-        TradingStrategyEnum.TREND_FOLLOWING, // 4. Especificar estrategia
+        'TREND_FOLLOWING', // 4. Especificar estrategia
       );
     }
 
@@ -267,7 +266,7 @@ export class AnalysisService {
   ): TradeSignal {
     return {
       symbol: symbol,
-      signal: SignalEnum.HOLD,
+      signal: 'HOLD',
       confidence: 0,
       reason,
       price: 0, // No aplica

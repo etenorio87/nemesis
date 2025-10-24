@@ -7,6 +7,7 @@ import {HealthModule} from './features/health/health.module';
 import {PrismaModule} from './core/prisma/prisma.module';
 import {SettingsModule} from './features/settings/settings.module';
 import {RedisModule} from './core/redis/redis.module';
+import {TradingEngineModule} from './features/trading-engine/trading-engine.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import {RedisModule} from './core/redis/redis.module';
     HealthModule,
     PrismaModule,
     SettingsModule,
+    TradingEngineModule
   ],
 })
 export class AppModule {

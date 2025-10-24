@@ -35,16 +35,17 @@ model BotConfig {
   lookbackPeriod Int @default(20)
 
   // Trading
-  defaultStopLoss   Float   @default(2.0)
-  defaultTakeProfit Float   @default(5.0)
-  useTrailingStop   Boolean @default(false)
-  commissionRate    Float   @default(0.001)
-  enableTrendFilter Boolean @default(true)
-  minConfidenceBuy  Int     @default(60)
-  minConfidenceSell Int     @default(50)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  enableTrendFilter   Boolean  @default(true)
+  commissionRate      Float    @default(0.001)
+  stopLossPercent     Float    @default(0.015)
+  takeProfitPercent   Float    @default(0.03)
+  trailingStopPercent Float    @default(0.008)
+  breakevenThreshold  Float    @default(0.015)
+  maxPositionSize     Float    @default(0.95)
+  minConfidenceToBuy  Float    @default(65)
+  minConfidenceToSell Float    @default(55)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@map("bot_config")
 }

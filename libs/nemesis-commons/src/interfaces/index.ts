@@ -1,6 +1,7 @@
 export * from './backtesting';
 export * from './indicators';
 export * from './strategy';
+export * from './trading-engine';
 
 export interface BinanceConfig {
   apiKey: string;

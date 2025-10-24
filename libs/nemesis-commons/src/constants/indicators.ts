@@ -1,4 +1,4 @@
-import {BotSettings, IndicatorSettings, TrendDetectionSettings} from '../interfaces';
+import {BotSettings, IndicatorSettings, TradingSettings, TrendDetectionSettings} from '../interfaces';
 
 /**
  * Valores por defecto para todos los indicadores
@@ -24,35 +24,31 @@ export const DEFAULT_TREND_DETECTION_SETTINGS: Required<TrendDetectionSettings> 
 };
 
 /**
- * Configuración óptima por defecto del bot
+ * Valores por defecto para detección de tendencias
  */
-export const DEFAULT_BOT_CONFIGURATION: BotSettings = {
-  indicators: DEFAULT_INDICATOR_SETTINGS,
-  trendDetection: DEFAULT_TREND_DETECTION_SETTINGS,
-  trading: {
-    defaultStopLossPercentage: 2.0,
-    defaultTakeProfitPercentage: 5.0,
-    defaultUseTrailingStop: false,
-    defaultCommissionRate: 0.001,
-    enableTrendFilter: true,          // Por defecto SÍ filtrar mercados bajistas
-    minConfidenceToBuy: 60,
-    minConfidenceToSell: 50,
-  },
-  lastUpdated: new Date(),
-  version: '1.0.0',
+export const DEFAULT_TRADING_SETTINGS: Required<TradingSettings> = {
+  enableTrendFilter: true,          // Por defecto SÍ filtrar mercados bajistas
+  commissionRate: 0.001,
+  stopLossPercent: 0.015,
+  takeProfitPercent: 0.03,
+  trailingStopPercent: 0.008,
+  breakevenThreshold: 0.015,
+  maxPositionSize: 0.95,
+  minConfidenceToBuy: 60,
+  minConfidenceToSell: 50,
 };
 
 /**
- * Rangos de validación para configuración de tendencias
+ * Configuración óptima por defecto del bot
  */
-export const TREND_DETECTION_VALIDATION_RANGES = {
-  adxPeriod: { min: 7, max: 30 },
-  adxThreshold: { min: 15, max: 40 },
-  ema20Period: { min: 10, max: 50 },
-  ema50Period: { min: 30, max: 100 },
-  ema200Period: { min: 100, max: 300 },
-  lookbackPeriod: { min: 10, max: 50 },
-} as const;
+export const DEFAULT_BOT_CONFIGURATION: BotSettings = {
+  version:        '1.0.0',
+  indicators:     DEFAULT_INDICATOR_SETTINGS,
+  trendDetection: DEFAULT_TREND_DETECTION_SETTINGS,
+  trading:        DEFAULT_TRADING_SETTINGS,
+  lastUpdated:    new Date(),
+};
+
 
 /**
  * GUÍA DE INTERPRETACIÓN DE TENDENCIAS
