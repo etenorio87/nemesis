@@ -1,7 +1,7 @@
-import {IsEnum, IsNumber, IsOptional, IsString, Max, Min} from 'class-validator';
-import {IntervalType} from '@nemesis/commons';
+import {IsDate, IsEnum, IsNumber, IsOptional, IsString, Max, Min} from 'class-validator';
+import {BacktestConfig, IntervalType} from '@nemesis/commons';
 
-export class RunBacktestDto {
+export class RunBacktestDto implements BacktestConfig {
   @IsString()
   symbol: string;
 
@@ -17,4 +17,12 @@ export class RunBacktestDto {
   @Min(50)
   @Max(1000)
   limit?: number;
+
+  @IsOptional()
+  @IsDate()
+  startDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  endDate?: Date;
 }

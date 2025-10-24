@@ -4,9 +4,8 @@ import {
   Kline,
   TechnicalAnalysis,
   TradeSignal,
-  IntervalType,
   IndicatorSettings,
-  DEFAULT_INDICATOR_SETTINGS,
+  DEFAULT_INDICATOR_SETTINGS, TradingStrategyType, TradingStrategyEnum, SignalType, SignalEnum,
 } from '@nemesis/commons';
 
 @Injectable()
@@ -14,27 +13,139 @@ export class AnalysisService {
   private readonly logger = new Logger(AnalysisService.name);
 
   /**
-   * Procesa klines y calcula indicadores técnicos
-   * 🆕 Ahora acepta configuración personalizada de indicadores
+   * MÉTODO ROUTER PRINCIPAL
+   * Este método reemplaza la lógica anterior.
+   * Recibe la estrategia y delega al método de cálculo apropiado.
+   *
+   * @param symbol - El símbolo del par (ej. 'BTCUSDT')
+   * @param klines - Historial de velas (OHLCV).
+   * @param settings - Configuración de indicadores.
+   * @param strategy - La estrategia dictada por TrendAnalysisService (MEAN_REVERSION o TREND_FOLLOWING).
+   * @returns TradeSignal - Una señal de trading (BUY, SELL, o HOLD).
    */
-  analyzeTechnicals(
-    klines: Kline[],
+  public generateSignals(
     symbol: string,
-    interval: IntervalType,
-    customSettings?: IndicatorSettings // 🆕 NUEVO PARÁMETRO
-  ): TechnicalAnalysis {
-    // 🆕 Merge de configuración personalizada con defaults
-    const settings = this.mergeWithDefaults(customSettings);
-    const closes = klines.map((k) => k.close);
+    klines: Kline[],
+    settings: IndicatorSettings,
+    strategy: TradingStrategyType,
+  ): TradeSignal {
+    // Obtenemos la última vela y precio
+    const currentKline = klines[klines.length - 1];
+    if (!currentKline) {
+      return this.createHoldSignal(
+        'Datos de Klines insuficientes',
+        symbol
+      );
+    }
 
-    // RSI - Ahora usa settings.rsi.period
+    // Unificamos la configuración
+    const mergedSettings = this.mergeWithDefaults(settings);
+
+    // Enrutamos la lógica basada en la estrategia
+    switch (strategy) {
+      case TradingStrategyEnum.MEAN_REVERSION:
+        return this.generateMeanReversionSignal(
+          symbol,
+          klines,
+          mergedSettings,
+          currentKline,
+        );
+      case TradingStrategyEnum.TREND_FOLLOWING:
+        return this.generateTrendFollowingSignal(
+          symbol,
+          klines,
+          mergedSettings,
+          currentKline,
+        );
+      case TradingStrategyEnum.HOLD:
+      default:
+        return this.createHoldSignal(
+          'Estrategia HOLD activa (detectado mercado bajista o incierto)',
+          symbol,
+        );
+    }
+  }
+
+  /**
+   * Estrategia de Reversión a la Media (Mercados Laterales)
+   * (Esta es su lógica existente, adaptada)
+   */
+  private generateMeanReversionSignal(
+    symbol: string,
+    klines: Kline[],
+    settings: Required<IndicatorSettings>,
+    currentKline: Kline,
+  ): TradeSignal {
+    const closes = klines.map((k) => k.close);
+    const analysis: Partial<TechnicalAnalysis> = {}; // Usamos Partial para construirlo
+
+    // RSI
     const rsiValues = RSI.calculate({
       values: closes,
       period: settings.rsi.period,
     });
-    const currentRSI = rsiValues[rsiValues.length - 1];
+    analysis.rsi = rsiValues[rsiValues.length - 1];
 
-    // MACD - Ahora usa settings.macd
+    // Lógica de Puntuación (Scoring)
+    const signals: string[] = [];
+    let buyScore = 0;
+    let sellScore = 0;
+
+    if (analysis.rsi) {
+      if (analysis.rsi < 30) {
+        buyScore = 100; // Señal fuerte
+        signals.push('RSI sobreventa (<30)');
+      } else if (analysis.rsi > 70) {
+        sellScore = 100; // Señal fuerte
+        signals.push('RSI sobrecompra (>70)');
+      }
+    }
+
+    // Determinar señal final
+    if (buyScore > sellScore) {
+      return this.createSignal(
+        symbol,
+        SignalEnum.BUY,
+        buyScore,
+        `Señal de COMPRA (Mean Reversion): ${signals.join(', ')}`,
+        currentKline,
+        settings,
+        analysis,
+        TradingStrategyEnum.MEAN_REVERSION, // 1. Especificar estrategia
+      );
+    } else if (sellScore > buyScore) {
+      return this.createSignal(
+        symbol,
+        SignalEnum.SELL,
+        sellScore,
+        `Señal de VENTA (Mean Reversion): ${signals.join(', ')}`,
+        currentKline,
+        settings,
+        analysis,
+        TradingStrategyEnum.MEAN_REVERSION, // 2. Especificar estrategia
+      );
+    }
+
+    return this.createHoldSignal(
+      `Señal HOLD (Mean Reversion): RSI neutral (${analysis.rsi?.toFixed(2)})`,
+      symbol,
+      analysis,
+    );
+  }
+
+  /**
+   * Estrategia de Seguimiento de Tendencia (Mercados Alcistas)
+   * (A implementar)
+   */
+  private generateTrendFollowingSignal(
+    symbol: string,
+    klines: Kline[],
+    settings: Required<IndicatorSettings>,
+    currentKline: Kline,
+  ): TradeSignal {
+    const closes = klines.map((k) => k.close);
+
+    // 1. Calcular MACD
     const macdValues = MACD.calculate({
       values: closes,
       fastPeriod: settings.macd.fastPeriod,
@@ -43,136 +154,133 @@ export class AnalysisService {
       SimpleMAOscillator: false,
       SimpleMASignal: false,
     });
-    const currentMACD = macdValues[macdValues.length - 1];
 
-    // SMA - Ahora usa settings.sma.period
-    const smaValues = SMA.calculate({
-      values: closes,
-      period: settings.sma.period,
-    });
-    const currentSMA = smaValues[smaValues.length - 1];
+    // 2. Verificar datos suficientes para un crossover
+    if (macdValues.length < 2) {
+      return this.createHoldSignal(
+        'Datos insuficientes para MACD crossover',
+        symbol,
+      );
+    }
 
-    // EMA - Ahora usa settings.ema.period
-    const emaValues = EMA.calculate({
-      values: closes,
-      period: settings.ema.period,
-    });
-    const currentEMA = emaValues[emaValues.length - 1];
+    // 3. Obtener los dos últimos valores de MACD (actual y anterior)
+    const currentMacd = macdValues[macdValues.length - 1];
+    const previousMacd = macdValues[macdValues.length - 2];
 
-    return {
-      symbol,
-      interval,
-      rsi: currentRSI,
-      macd: currentMACD
-        ? {
-          MACD: currentMACD.MACD,
-          signal: currentMACD.signal,
-          histogram: currentMACD.histogram,
-        }
-        : undefined,
-      sma: currentSMA,
-      ema: currentEMA,
-      timestamp: new Date(),
+    // Adjuntamos el indicador al análisis para el registro
+    const analysis: Partial<TechnicalAnalysis> = {
+      macd: currentMacd,
     };
-  }
 
-  /**
-   * Genera señal de trading basada en análisis técnico
-   * 🆕 Ahora retorna la configuración usada en la señal
-   */
-  generateSignal(
-    analysis: TechnicalAnalysis,
-    currentPrice: number,
-    indicatorSettings?: IndicatorSettings // 🆕 NUEVO PARÁMETRO
-  ): TradeSignal {
+    // 4. Lógica de Crossover
     const signals: string[] = [];
     let buyScore = 0;
     let sellScore = 0;
 
-    // Análisis RSI
-    if (analysis.rsi) {
-      if (analysis.rsi < 30) {
-        buyScore += 40;
-        signals.push('RSI sobreventa (<30)');
-      } else if (analysis.rsi > 70) {
-        sellScore += 40;
-        signals.push('RSI sobrecompra (>70)');
-      } else if (analysis.rsi < 40) {
-        buyScore += 20;
-        signals.push('RSI bajo (<40)');
-      } else if (analysis.rsi > 60) {
-        sellScore += 20;
-        signals.push('RSI alto (>60)');
-      }
+    // Crossover Alcista (Golden Cross) -> Señal de ENTRADA
+    if (
+      previousMacd.MACD <= previousMacd.signal && // Estaba abajo o cruzando
+      currentMacd.MACD > currentMacd.signal &&    // Cruzó arriba
+      currentMacd.histogram > 0                  // Confirmado por histograma positivo
+    ) {
+      buyScore = 100;
+      signals.push('MACD Crossover Alcista (Entrada)');
+    }
+    // Crossover Bajista (Dead Cross) -> Señal de SALIDA
+    else if (
+      previousMacd.MACD >= previousMacd.signal && // Estaba arriba o cruzando
+      currentMacd.MACD < currentMacd.signal       // Cruzó abajo
+    ) {
+      sellScore = 100;
+      signals.push('MACD Crossover Bajista (Salida)');
     }
 
-    // Análisis MACD
-    if (analysis.macd) {
-      const { MACD: macdLine, signal, histogram } = analysis.macd;
-
-      // MACD crossover alcista
-      if (histogram > 0 && macdLine > signal) {
-        buyScore += 30;
-        signals.push('MACD crossover alcista');
-      }
-      // MACD crossover bajista
-      else if (histogram < 0 && macdLine < signal) {
-        sellScore += 30;
-        signals.push('MACD crossover bajista');
-      }
+    // 5. Determinar señal final
+    if (buyScore > 0) {
+      return this.createSignal(
+        symbol,
+        SignalEnum.BUY,
+        buyScore,
+        `Señal de COMPRA (Trend Following): ${signals.join(', ')}`,
+        currentKline,
+        settings,
+        analysis,
+        TradingStrategyEnum.TREND_FOLLOWING, // 3. Especificar estrategia
+      );
+    } else if (sellScore > 0) {
+      return this.createSignal(
+        symbol,
+        SignalEnum.SELL,
+        sellScore,
+        `Señal de VENTA (Trend Following): ${signals.join(', ')}`,
+        currentKline,
+        settings,
+        analysis,
+        TradingStrategyEnum.TREND_FOLLOWING, // 4. Especificar estrategia
+      );
     }
 
-    // Análisis de medias móviles
-    if (analysis.sma && analysis.ema) {
-      if (currentPrice > analysis.sma && currentPrice > analysis.ema) {
-        buyScore += 20;
-        signals.push('Precio sobre SMA y EMA');
-      } else if (currentPrice < analysis.sma && currentPrice < analysis.ema) {
-        sellScore += 20;
-        signals.push('Precio bajo SMA y EMA');
-      }
-    }
-
-    // Determinar señal final
-    let signal: 'BUY' | 'SELL' | 'HOLD';
-    let confidence: number;
-    let reason: string;
-
-    if (buyScore > sellScore && buyScore >= 60) {
-      signal = 'BUY';
-      confidence = Math.min(buyScore, 100);
-      reason = `Señal de COMPRA: ${signals.join(', ')}`;
-    } else if (sellScore > buyScore && sellScore >= 50) {
-      signal = 'SELL';
-      confidence = Math.min(sellScore, 100);
-      reason = `Señal de VENTA: ${signals.join(', ')}`;
-    } else {
-      signal = 'HOLD';
-      confidence = Math.abs(buyScore - sellScore);
-      reason = `Sin señal clara. ${signals.join(', ') || 'Mercado neutral'}`;
-    }
-
-    this.logger.log(
-      `${analysis.symbol}: ${signal} (${confidence}%) - ${reason}`
+    return this.createHoldSignal(
+      `Señal HOLD (Trend Following): Sin Crossover MACD. Hist: ${currentMacd.histogram?.toFixed(
+        2,
+      )}`,
+      symbol,
+      analysis,
     );
+  }
 
+  // --- MÉTODOS HELPER ---
+
+  /**
+   * Helper para crear señales (BUY/SELL)
+   */
+  private createSignal(
+    symbol: string,
+    signal: SignalType,
+    confidence: number,
+    reason: string,
+    kline: Kline,
+    settings: IndicatorSettings,
+    analysis: Partial<TechnicalAnalysis>,
+    strategy: TradingStrategyType, // 5. NUEVO PARÁMETRO
+  ): TradeSignal {
     return {
-      symbol: analysis.symbol,
+      symbol,
       signal,
       confidence,
       reason,
-      price: currentPrice,
-      timestamp: new Date(),
-      indicators: analysis,
-      indicatorSettings: indicatorSettings, // 🆕 NUEVO: Documenta la configuración usada
+      price: kline.close,
+      timestamp: new Date(kline.closeTime),
+      indicators: analysis as TechnicalAnalysis,
+      indicatorSettings: settings,
+      strategyUsed: strategy
     };
   }
 
   /**
-   * 🆕 NUEVO MÉTODO: Merge configuración personalizada con defaults
+   * Helper para crear señal HOLD
+   */
+  private createHoldSignal(
+    reason: string,
+    symbol: string,
+    analysis?: Partial<TechnicalAnalysis>,
+  ): TradeSignal {
+    return {
+      symbol: symbol,
+      signal: SignalEnum.HOLD,
+      confidence: 0,
+      reason,
+      price: 0, // No aplica
+      timestamp: new Date(),
+      indicators: (analysis as TechnicalAnalysis) || undefined,
+    };
+  }
+
+  /**
+   * Merge configuración personalizada con defaults
    */
   private mergeWithDefaults(
-    customSettings?: IndicatorSettings
+    customSettings?: IndicatorSettings,
   ): Required<IndicatorSettings> {
     return {
       rsi: {

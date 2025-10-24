@@ -1,5 +1,5 @@
 import {MarketTrendType, SignalType, TradingStrategyType} from '../types';
-import {IndicatorSettings, TrendIndicators} from './indicators';
+import {IndicatorSettings, MACDOutput, TrendIndicators} from './indicators';
 
 export interface MarketData {
   symbol: string;
@@ -12,11 +12,7 @@ export interface TechnicalAnalysis {
   symbol: string;
   interval: string;
   rsi?: number;
-  macd?: {
-    MACD: number;
-    signal: number;
-    histogram: number;
-  };
+  macd?: MACDOutput;
   sma?: number;
   ema?: number;
   timestamp: Date;

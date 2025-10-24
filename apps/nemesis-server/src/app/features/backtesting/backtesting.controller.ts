@@ -1,5 +1,4 @@
 import { Controller, Post, Body, ValidationPipe } from '@nestjs/common';
-import { CompareBacktestsDto } from './dto/compare-symbols.dto';
 import { BacktestingService } from './backtesting.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
 

@@ -45,3 +45,9 @@ export interface TrendIndicators {
   lowerHighs?: boolean;      // ¿Precio hace máximos más bajos?
   lowerLows?: boolean;       // ¿Precio hace mínimos más bajos?
 }
+
+export interface MACDOutput {
+  MACD?: number;
+  signal?: number;
+  histogram?: number;
+}

@@ -1,5 +1,5 @@
 import {Injectable, Logger} from '@nestjs/common';
-import Binance, {CandleChartInterval} from 'binance-api-node';
+import Binance, {CandlesOptions} from 'binance-api-node';
 import {BinanceConfig, Kline, MarketData, IntervalType} from '@nemesis/commons';
 
 @Injectable()
@@ -66,14 +66,16 @@ export class BinanceService {
   async getKlines(
     symbol: string,
     interval: IntervalType = '15m',
-    limit: number = 100
+    limit: number = 100,
+    startDate?: Date,
+    endDate?: Date,
   ): Promise<Kline[]> {
     try {
-      const candles = await this.client.candles({
-        symbol,
-        interval: interval as CandleChartInterval,
-        limit,
-      });
+      let options: CandlesOptions = { symbol, interval};
+      if (limit) options['limit'] = limit;
+      if (startDate) options['startTime'] = startDate.getTime();
+      if (endDate) options['endTime'] = endDate.getTime();
+      const candles = await this.client.candles( options );
 
       return candles.map((candle) => ({
         openTime: candle.openTime,
