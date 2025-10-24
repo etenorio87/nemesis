@@ -30,7 +30,7 @@
 - ✅ Sistema de puntuación por indicadores:
   - RSI extremo: 40 puntos
   - RSI moderado: 20 puntos
-  - MACD crossover: 30 puntos
+- ✅ MACD crossover: 30 puntos
   - Posición vs medias: 20 puntos
 
 #### 4. **Backtesting Completo**
@@ -38,11 +38,11 @@
 - ✅ Métricas implementadas:
   - Profit/Loss (absoluto y porcentual)
   - Win Rate
-  - Max Drawdown
+- ✅ Max Drawdown
   - Average Win/Loss
   - Profit Factor
-  - Equity curve (evolución del capital)
-  - Total de operaciones
+- ✅ Equity curve (evolución del capital)
+- ✅ Total de operaciones
   - Trades ganadores/perdedores
 - ✅ Comisiones configurables (default: 0.1%)
 - ✅ Historial detallado de trades
@@ -71,7 +71,7 @@
 - ✅ **RedisModule** (Global)
 - ✅ **ConfigurationModule** completo
 - ✅ Esquema de BD con modelos:
-  - `BotConfig` (configuración persistente)
+- ✅ `BotConfig` (configuración persistente)
   - `Trade` (para futuro)
   - `Signal` (para futuro)
   - `BacktestResult` (para futuro)
@@ -82,14 +82,14 @@
 - ✅ Cache en Redis (24h TTL)
 - ✅ Escritura en BD + actualización de cache
 - ✅ API REST para gestión de configuración:
-  - `GET /config` - Ver configuración completa
-  - `GET /config/indicators` - Ver indicadores
-  - `GET /config/trend-detection` - Ver detección de tendencias
-  - `GET /config/trading` - Ver configuración de trading
-  - `PUT /config/indicators` - Actualizar indicadores
-  - `PUT /config/trend-detection` - Actualizar tendencias
-  - `PUT /config/trading` - Actualizar trading
-  - `POST /config/reset` - Resetear a defaults
+- ✅ `GET /config` - Ver configuración completa
+- ✅ `GET /config/indicators` - Ver indicadores
+- ✅ `GET /config/trend-detection` - Ver detección de tendencias
+- ✅ `GET /config/trading` - Ver configuración de trading
+- ✅ `PUT /config/indicators` - Actualizar indicadores
+- ✅ `PUT /config/trend-detection` - Actualizar tendencias
+- ✅ `PUT /config/trading` - Actualizar trading
+- ✅ `POST /config/reset` - Resetear a defaults
 - ✅ Integración completa en servicios existentes
 
 #### 9. **Arquitectura y Código**

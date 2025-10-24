@@ -28,16 +28,16 @@ export class BacktestingService {
     private readonly trendAnalysisService: TrendAnalysisService,
   ) {}
 
-  public async runBacktest(dto: BacktestConfig): Promise<BacktestResult> {
+  public async runBacktest(config: BacktestConfig): Promise<BacktestResult> {
     // --- 1. Obtención de Datos y Configuración ---
-    this.logger.log(`Iniciando backtest para ${dto.symbol} (${dto.interval})...`);
+    this.logger.log(`Iniciando backtest para ${config.symbol} (${config.interval})...`);
 
     const klines = await this.binanceService.getKlines(
-      dto.symbol,
-      dto.interval,
-      dto.limit,
-      dto.startDate,
-      dto.endDate,
+      config.symbol,
+      config.interval,
+      config.limit,
+      config.startDate,
+      config.endDate,
     );
 
     const [indicatorSettings, trendSettings, tradingSettings] = await Promise.all([
@@ -47,7 +47,7 @@ export class BacktestingService {
     ]);
 
     // --- 2. Inicialización de Estado ---
-    let balance = dto.initialBalance;
+    let balance = config.initialBalance;
     let position = 0; // Cantidad de activo (ej. 1 BTC)
     let entryPrice = 0; // Precio de la última compra
     const trades: BacktestTrade[] = []; // 3. Usar BacktestTrade[]
@@ -92,7 +92,7 @@ export class BacktestingService {
 
       // 4b. Generar Señal
       const signal = this.analysisService.generateSignals( // 6. Llamar al nuevo método
-        dto.symbol,
+        config.symbol,
         currentKlines,
         indicatorSettings,
         marketTrend.recommendedStrategy, // Pasamos la estrategia
@@ -142,7 +142,6 @@ export class BacktestingService {
     this.logger.log(`Backtest completado. Trades realizados: ${trades.length}`);
 
     // --- 5. 🆕 CÁLCULO DE MÉTRICAS Y RETORNO (IMPLEMENTADO) ---
-
     // 5a. Liquidar posición abierta si existe (para P/L final)
     let finalBalance = balance;
     if (position > 0) {
@@ -162,9 +161,9 @@ export class BacktestingService {
         : 0;
 
     // 5c. Métricas de P/L
-    const totalPnl = finalBalance - dto.initialBalance;
+    const totalPnl = finalBalance - config.initialBalance;
     const totalPnlPercentage =
-      (totalPnl / dto.initialBalance) * 100;
+      (totalPnl / config.initialBalance) * 100;
 
     // 5d. Métricas de Equity y Drawdown
     const equityValues = equityCurve.map((e) => e.equity);
@@ -172,11 +171,11 @@ export class BacktestingService {
 
     // 5e. Construir el objeto de retorno COMPLETO
     return {
-      symbol: dto.symbol,
-      interval: dto.interval,
-      startDate: new Date(dto.startDate),
-      endDate: new Date(dto.endDate),
-      initialBalance: dto.initialBalance,
+      symbol: config.symbol,
+      interval: config.interval,
+      startDate: new Date(config.startDate),
+      endDate: new Date(config.endDate),
+      initialBalance: config.initialBalance,
       finalBalance: finalBalance,
       totalOperations: trades.length,
       completedTrades: completedTrades.length,

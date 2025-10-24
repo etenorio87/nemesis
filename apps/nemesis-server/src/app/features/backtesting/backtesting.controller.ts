@@ -14,7 +14,9 @@ export class BacktestingController {
       symbol: dto.symbol,
       interval: dto.interval,
       initialBalance: dto.initialBalance,
-      limit: dto.limit || 500
+      limit: dto.limit || 500,
+      startDate: dto.startDate,
+      endDate: dto.endDate,
     });
   }
 }
