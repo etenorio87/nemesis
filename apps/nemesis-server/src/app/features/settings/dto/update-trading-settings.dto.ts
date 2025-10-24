@@ -46,13 +46,13 @@ export class UpdateTradingSettingsDto implements TradingSettings {
   @IsOptional()
   @IsNumber()
   @Min(0.1)
-  @Max(50)
+  @Max(100)
   minConfidenceToBuy?: number;          // Confianza mínima para comprar (ej: 60)
 
   @IsOptional()
   @IsNumber()
   @Min(0.1)
-  @Max(50)
+  @Max(100)
   minConfidenceToSell?: number;         // Confianza mínima para vender (ej: 50)
 }
 

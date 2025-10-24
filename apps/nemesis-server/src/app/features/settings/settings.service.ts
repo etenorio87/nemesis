@@ -184,10 +184,11 @@ export class SettingsService implements OnModuleInit {
     return config.trading;
   }
 
+
   /**
    * Actualiza configuración de indicadores
    */
-  async updateIndicatorSettings(settings: Partial<IndicatorSettings>): Promise<BotSettings> {
+  async updateIndicatorSettings(settings: Partial<IndicatorSettings>): Promise<IndicatorSettings> {
     await this.prisma.botConfig.updateMany({
       data: {
         rsiPeriod: settings.rsi?.period,
@@ -202,13 +203,13 @@ export class SettingsService implements OnModuleInit {
 
     const newConfig = await this.reloadConfiguration();
     this.logger.log('📝 Configuración de indicadores actualizada');
-    return newConfig;
+    return newConfig.indicators;
   }
 
   /**
    * Actualiza configuración de detección de tendencias
    */
-  async updateTrendDetectionSettings(settings: Partial<TrendDetectionSettings>): Promise<BotSettings> {
+  async updateTrendDetectionSettings(settings: Partial<TrendDetectionSettings>): Promise<TrendDetectionSettings> {
     await this.prisma.botConfig.updateMany({
       data: {
         adxPeriod: settings.adxPeriod,
@@ -223,13 +224,13 @@ export class SettingsService implements OnModuleInit {
 
     const newConfig = await this.reloadConfiguration();
     this.logger.log('📝 Configuración de detección de tendencias actualizada');
-    return newConfig;
+    return newConfig.trendDetection;
   }
 
   /**
    * Actualiza configuración de trading
    */
-  async updateTradingSettings(settings: Partial<TradingSettings>): Promise<BotSettings> {
+  async updateTradingSettings(settings: Partial<TradingSettings>): Promise<TradingSettings> {
     await this.prisma.botConfig.updateMany({
       data: {
         enableTrendFilter: settings.enableTrendFilter,
@@ -247,7 +248,7 @@ export class SettingsService implements OnModuleInit {
 
     const newConfig = await this.reloadConfiguration();
     this.logger.log('📝 Configuración de trading actualizada');
-    return newConfig;
+    return newConfig.trading;
   }
 
   /**
